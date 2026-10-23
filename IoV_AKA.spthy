@@ -1,0 +1,441 @@
+/*
+ * Tamarin model of the proposed authentication protocol for 6G-assisted
+ * fog-computing-based Internet of Vehicles (IoV).
+ *
+ *   Phase A (full authentication, via the cloud):
+ *       M1 V->F,  M2 F->CS,  M3 CS->F,  M4 F->V      (session key SK)
+ *   Phase B (cloud-free fog handover authentication):
+ *       M5 V->F', M6 F'->V                            (session key SK')
+ *
+ * Adversary: Dolev-Yao network adversary extended with the Canetti-Krawczyk
+ *            (CK) queries Corrupt (long-term state of an entity) and
+ *            ESReveal (per-session ephemeral randomness r_1,...,r_5).
+ *
+ * Modelling choices (abstractions):
+ *  - Scalar multiplication x.P is modelled with Tamarin's built-in
+ *    Diffie-Hellman theory as P^x (computational DH assumptions).
+ *  - Ephemeral scalars follow the NAXOS construction x = h(r || S).
+ *  - The static keys k_ic = h(S_Vi.P_c) and k_jc = h(S_Fj.P_c) are computed
+ *    once at registration; they are modelled as fresh values shared between
+ *    the entity and CS and are revealed by corrupting either endpoint.
+ *  - The pairwise polynomial key k_ij = f(VID_i, FID_j) is the private
+ *    function poly/2. It is revealed by corrupting V_i (row share), F_j
+ *    (column share) or CS (holder of f). Coalitions that exceed the degree
+ *    of f, and could interpolate it, are outside the model.
+ *  - The one-time pad N_c = h(.) XOR SK is modelled as symmetric encryption
+ *    of SK under the mask h(.).
+ *  - Timestamps are abstracted away; the replay caches kept by the fog
+ *    nodes and CS within the freshness window are modelled by uniqueness
+ *    restrictions on the received ephemeral public keys.
+ */
+
+// This file: complete model with both phases and all lemmas.
+
+theory IoV_AKA
+begin
+
+builtins: diffie-hellman, hashing, symmetric-encryption
+
+functions: poly/2 [private]
+
+/* ------------------------------------------------------------------ */
+/* Restrictions                                                       */
+/* ------------------------------------------------------------------ */
+
+restriction OnlyOnceCS:
+  "All #i #j. CSSetup() @ #i & CSSetup() @ #j ==> #i = #j"
+
+restriction FogReplayCache:
+  "All fid R #i #j. F_Cache(fid, R) @ #i & F_Cache(fid, R) @ #j ==> #i = #j"
+
+restriction CloudReplayCache:
+  "All R #i #j. CS_Cache(R) @ #i & CS_Cache(R) @ #j ==> #i = #j"
+
+/* ------------------------------------------------------------------ */
+/* Setup and registration (secure channel)                            */
+/* ------------------------------------------------------------------ */
+
+rule CS_Setup:
+    [ Fr(~sc) ]
+  --[ CSSetup() ]->
+    [ !LtkC(~sc), !PkC('g'^~sc), Out('g'^~sc) ]
+
+// F_j generates its own key pair (no key escrow)
+rule Fog_Register:
+    [ Fr(~fid), Fr(~sf), Fr(~kjc), !PkC(pc) ]
+  --[ FogLtk(~fid, ~sf), FogKey(~fid, ~kjc) ]->
+    [ !LtkF(~fid, ~sf, ~kjc), !PkF(~fid, 'g'^~sf), !RegF(~fid, ~kjc),
+      Out(<~fid, 'g'^~sf>) ]
+
+// V_i generates its own key pair (no key escrow)
+rule Vehicle_Register:
+    [ Fr(~vid), Fr(~sv), Fr(~kic), !PkC(pc) ]
+  --[ VehLtk(~vid, ~sv), VehKey(~vid, ~kic) ]->
+    [ !LtkV(~vid, ~sv, ~kic), !RegV(~vid, ~kic) ]
+
+/* ------------------------------------------------------------------ */
+/* CK adversary: Corrupt and ESReveal queries                         */
+/* ------------------------------------------------------------------ */
+
+rule Corrupt_V:
+    [ !LtkV(~vid, ~sv, ~kic) ] --[ RevV(~vid) ]-> [ Out(<~vid, ~sv, ~kic>) ]
+
+rule Corrupt_V_share:      // share f(VID_i, y), evaluated at any fog node
+    [ !LtkV(~vid, ~sv, ~kic), !PkF(~fid, pf) ] --[ RevV(~vid) ]-> [ Out(poly(~vid, ~fid)) ]
+
+rule Corrupt_F:
+    [ !LtkF(~fid, ~sf, ~kjc) ] --[ RevF(~fid) ]-> [ Out(<~sf, ~kjc>) ]
+
+rule Corrupt_F_share:      // share f(x, FID_j), evaluated at any vehicle
+    [ !LtkF(~fid, ~sf, ~kjc), !RegV(~vid, kic) ] --[ RevF(~fid) ]-> [ Out(poly(~vid, ~fid)) ]
+
+rule Corrupt_CS:
+    [ !LtkC(~sc) ] --[ RevC() ]-> [ Out(~sc) ]
+
+rule Corrupt_CS_db:        // registry entries and the polynomial f(x, y)
+    [ !LtkC(~sc), !RegV(~vid, ~kic), !RegF(~fid, ~kjc) ]
+  --[ RevC() ]->
+    [ Out(<~kic, ~kjc, poly(~vid, ~fid)>) ]
+
+rule ESReveal_V:  [ !EphV(~vid, R, ~e) ] --[ RevEphV(~vid, R) ]-> [ Out(~e) ]
+
+rule ESReveal_F:  [ !EphF(~fid, R, ~e) ] --[ RevEphF(~fid, R) ]-> [ Out(~e) ]
+
+rule ESReveal_CS: [ !EphC(R, ~e) ]       --[ RevEphC(R) ]->       [ Out(~e) ]
+
+/* ------------------------------------------------------------------ */
+/* Phase A: cloud-assisted authentication                             */
+/* ------------------------------------------------------------------ */
+
+// Step 1: V_i -> F_j : M1 = {R1, C1, sigma_1, tau_i, T1}
+rule V_1:
+    let x1   = h(<'nx', ~e1, ~sv>)
+        R1   = 'g'^x1
+        Q1   = pf^x1
+        K1   = h(<'K1', Q1, R1>)
+        sig1 = h(<'sig', poly(~vid, ~fid), ~vid, ~fid, R1>)
+        Ai   = h(<'A', ~kic, ~vid, ~fid, R1>)
+    in
+    [ !LtkV(~vid, ~sv, ~kic), !PkF(~fid, pf), Fr(~e1) ]
+  --[ V_Start(~vid, ~fid, R1), V_Eph(~vid, ~e1, ~sv, R1) ]->
+    [ V_St(~vid, ~fid, ~e1, ~sv, ~kic, R1, Q1), !EphV(~vid, R1, ~e1),
+      Out(<R1, senc(~vid, K1), sig1, Ai>) ]
+
+// Step 2a: F_j decrypts C1 and verifies sigma_1 with k_ij = f(VID_i, FID_j)
+rule F_1:
+    let Q1 = R1^~sf
+        K1 = h(<'K1', Q1, R1>)
+    in
+    [ !LtkF(~fid, ~sf, ~kjc),
+      In(<R1, senc(~vid, K1), h(<'sig', poly(~vid, ~fid), ~vid, ~fid, R1>), Ai>) ]
+  --[ F_Cache(~fid, R1) ]->
+    [ F_St1(~fid, ~vid, R1, Q1, Ai) ]
+
+// Step 2b: F_j -> CS : M2 = {FID_j, R1, R2, C2, A_i, T2}
+rule F_2:
+    let x2 = h(<'nx', ~e2, ~sf>)
+        R2 = 'g'^x2
+        Q2 = pc^x2
+        K2 = h(<'K2', Q2, ~kjc, R1, R2>)
+    in
+    [ F_St1(~fid, ~vid, R1, Q1, Ai), !LtkF(~fid, ~sf, ~kjc), !PkC(pc), Fr(~e2) ]
+  --[ F_Recv(~fid, ~vid, R1, R2), F_Eph(~fid, ~e2, ~sf, R2) ]->
+    [ F_St2(~fid, ~vid, ~e2, ~sf, ~kjc, R1, R2, Q1, Q2), !EphF(~fid, R2, ~e2),
+      Out(<~fid, R1, R2, senc(~vid, K2), Ai>) ]
+
+// Step 3a: CS authenticates F_j (K2 contains k_jc) and V_i (A_i)
+rule CS_1:
+    let Q2 = R2^~sc
+        K2 = h(<'K2', Q2, ~kjc, R1, R2>)
+    in
+    [ !LtkC(~sc), !RegF(~fid, ~kjc), !RegV(~vid, ~kic),
+      In(<~fid, R1, R2, senc(~vid, K2), h(<'A', ~kic, ~vid, ~fid, R1>)>) ]
+  --[ CS_Cache(R2), CS_Cache(R1), CS_Recv(~vid, ~fid, R1, R2) ]->
+    [ CS_St1(~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, Q2) ]
+
+// Step 3b: CS -> F_j : M3 = {R3, N_c, d1, T3}
+rule CS_2:
+    let x3  = h(<'nx', ~e3, ~sc>)
+        R3  = 'g'^x3
+        ZFC = R2^x3
+        ZVC = R1^x3
+        h2  = h(<'h2', ~vid, ~fid, R1, R3>)
+        SK  = h(<'SK', h2, ZFC, Q2>)
+        d1  = h(<'d1', SK, ~kjc, h2>)
+        Nc  = senc(SK, h(<'mask', ZVC, ~kic, h2>))
+    in
+    [ CS_St1(~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, Q2), Fr(~e3) ]
+  --[ CS_Accept(~vid, ~fid, R1, R2, R3, SK), C_Eph(~e3, ~sc, R3) ]->
+    [ !EphC(R3, ~e3), Out(<R3, Nc, d1>) ]
+
+// Step 4: F_j verifies d1 and sends M4 = {R3, N_c, d3, T4} to V_i
+rule F_3:
+    let x2  = h(<'nx', ~e2, ~sf>)
+        ZFC = R3^x2
+        h2  = h(<'h2', ~vid, ~fid, R1, R3>)
+        SK  = h(<'SK', h2, ZFC, Q2>)
+        d3  = h(<'d3', SK, Q1, h2>)
+    in
+    [ F_St2(~fid, ~vid, ~e2, ~sf, ~kjc, R1, R2, Q1, Q2),
+      In(<R3, Nc, h(<'d1', SK, ~kjc, h2>)>) ]
+  --[ F_Accept(~fid, ~vid, R1, R2, R3, SK) ]->
+    [ Out(<R3, Nc, d3>) ]
+
+// Step 5: V_i recovers SK from N_c and verifies d3
+rule V_2:
+    let x1  = h(<'nx', ~e1, ~sv>)
+        ZVC = R3^x1
+        h2  = h(<'h2', ~vid, ~fid, R1, R3>)
+    in
+    [ V_St(~vid, ~fid, ~e1, ~sv, ~kic, R1, Q1),
+      In(<R3, senc(SK, h(<'mask', ZVC, ~kic, h2>)), h(<'d3', SK, Q1, h2>)>) ]
+  --[ V_Accept(~vid, ~fid, R1, R3, SK) ]->
+    [ ]
+
+/* ------------------------------------------------------------------ */
+/* Phase B: cloud-free handover authentication                        */
+/* ------------------------------------------------------------------ */
+
+// Step H1: V_i -> F_k : M5 = {R4, C3, sigma_4, T5}
+rule VH_1:
+    let x4   = h(<'nx', ~e4, ~sv>)
+        R4   = 'g'^x4
+        Q4   = pf^x4
+        K3   = h(<'K3', Q4, R4>)
+        kik  = poly(~vid, ~fid)
+        sig4 = h(<'sig4', kik, ~vid, ~fid, R4>)
+    in
+    [ !LtkV(~vid, ~sv, ~kic), !PkF(~fid, pf), Fr(~e4) ]
+  --[ VH_Start(~vid, ~fid, R4) ]->
+    [ VH_St(~vid, ~fid, ~e4, ~sv, R4, Q4), !EphV(~vid, R4, ~e4),
+      Out(<R4, senc(~vid, K3), sig4>) ]
+
+// Step H2: F_k authenticates V_i with k_ik = f(VID_i, FID_k) and replies
+//          M6 = {R5, d5, T6}
+rule FH_1:
+    let Q4   = R4^~sf
+        K3   = h(<'K3', Q4, R4>)
+        kik  = poly(~vid, ~fid)
+        x5   = h(<'nx', ~e5, ~sf>)
+        R5   = 'g'^x5
+        Z    = R4^x5
+        SKh  = h(<'SKh', kik, ~vid, ~fid, R4, R5, Z, Q4>)
+        d5   = h(<'d5', SKh, R4, R5>)
+    in
+    [ !LtkF(~fid, ~sf, ~kjc), Fr(~e5),
+      In(<R4, senc(~vid, K3), h(<'sig4', kik, ~vid, ~fid, R4>)>) ]
+  --[ F_Cache(~fid, R4), FH_Accept(~fid, ~vid, R4, R5, SKh) ]->
+    [ !EphF(~fid, R5, ~e5), Out(<R5, d5>) ]
+
+// Step H3: V_i derives SK' and verifies d5
+rule VH_2:
+    let x4   = h(<'nx', ~e4, ~sv>)
+        Z    = R5^x4
+        kik  = poly(~vid, ~fid)
+        SKh  = h(<'SKh', kik, ~vid, ~fid, R4, R5, Z, Q4>)
+    in
+    [ VH_St(~vid, ~fid, ~e4, ~sv, R4, Q4), In(<R5, h(<'d5', SKh, R4, R5>)>) ]
+  --[ VH_Accept(~vid, ~fid, R4, R5, SKh) ]->
+    [ ]
+
+/* ------------------------------------------------------------------ */
+/* Helper lemmas: long-term secrets and NAXOS scalars                 */
+/* ------------------------------------------------------------------ */
+
+lemma ltk_V [reuse]:
+  "All vid sv #i #j. VehLtk(vid, sv) @ #i & KU(sv) @ #j
+     ==> Ex #r. RevV(vid) @ #r & #r < #j"
+
+lemma ltk_F [reuse]:
+  "All fid sf #i #j. FogLtk(fid, sf) @ #i & KU(sf) @ #j
+     ==> Ex #r. RevF(fid) @ #r & #r < #j"
+
+lemma key_ic [reuse]:
+  "All vid k #i #j. VehKey(vid, k) @ #i & KU(k) @ #j
+     ==> (Ex #r. RevV(vid) @ #r & #r < #j) | (Ex #r. RevC() @ #r & #r < #j)"
+
+lemma key_jc [reuse]:
+  "All fid k #i #j. FogKey(fid, k) @ #i & KU(k) @ #j
+     ==> (Ex #r. RevF(fid) @ #r & #r < #j) | (Ex #r. RevC() @ #r & #r < #j)"
+
+lemma key_ij [reuse]:
+  "All vid fid #j. KU(poly(vid, fid)) @ #j
+     ==> (Ex #r. RevV(vid) @ #r & #r < #j) | (Ex #r. RevF(fid) @ #r & #r < #j)
+       | (Ex #r. RevC() @ #r & #r < #j)"
+
+lemma eph_V [reuse]:
+  "All vid e sv R #i #j. V_Eph(vid, e, sv, R) @ #i & KU(h(<'nx', e, sv>)) @ #j
+     ==> (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R) @ #b)"
+
+lemma eph_F [reuse]:
+  "All fid e sf R #i #j. F_Eph(fid, e, sf, R) @ #i & KU(h(<'nx', e, sf>)) @ #j
+     ==> (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R) @ #b)"
+
+lemma eph_C [reuse]:
+  "All e sc R #i #j. C_Eph(e, sc, R) @ #i & KU(h(<'nx', e, sc>)) @ #j
+     ==> (Ex #a #b. RevC() @ #a & RevEphC(R) @ #b)"
+
+/* ------------------------------------------------------------------ */
+/* Executability                                                      */
+/* ------------------------------------------------------------------ */
+
+lemma exec_phaseA:
+  exists-trace
+  "Ex vid fid R1 R2 R3 SK #i #j #k.
+      CS_Accept(vid, fid, R1, R2, R3, SK) @ #i
+    & F_Accept(fid, vid, R1, R2, R3, SK) @ #j
+    & V_Accept(vid, fid, R1, R3, SK) @ #k
+    & not (Ex v #r. RevV(v) @ #r) & not (Ex f #r. RevF(f) @ #r)
+    & not (Ex #r. RevC() @ #r)"
+
+lemma exec_phaseB:
+  exists-trace
+  "Ex vid fid R4 R5 SK #i #j.
+      FH_Accept(fid, vid, R4, R5, SK) @ #i & VH_Accept(vid, fid, R4, R5, SK) @ #j
+    & not (Ex v #r. RevV(v) @ #r) & not (Ex f #r. RevF(f) @ #r)
+    & not (Ex #r. RevC() @ #r)"
+
+/* ------------------------------------------------------------------ */
+/* Authentication (reused in the secrecy proofs)                      */
+/* ------------------------------------------------------------------ */
+
+lemma authA_V_F [reuse]:
+  "All vid fid R1 R3 SK #i.
+      V_Accept(vid, fid, R1, R3, SK) @ #i
+   ==>
+      (Ex R2 #j. F_Accept(fid, vid, R1, R2, R3, SK) @ #j & #j < #i)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)
+    | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R1) @ #b)"
+
+lemma authA_V_CS [reuse]:
+  "All vid fid R1 R3 SK #i.
+      V_Accept(vid, fid, R1, R3, SK) @ #i
+   ==>
+      (Ex R2 #j. CS_Accept(vid, fid, R1, R2, R3, SK) @ #j & #j < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)
+    | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R1) @ #b)
+    | (Ex #a #b. RevV(vid) @ #a & RevF(fid) @ #b & #a < #i & #b < #i)"
+
+lemma authA_F_V [reuse]:
+  "All vid fid R1 R2 R3 SK #i.
+      F_Accept(fid, vid, R1, R2, R3, SK) @ #i
+   ==>
+      (Ex #j. V_Start(vid, fid, R1) @ #j & #j < #i)
+    | (Ex #a. RevV(vid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)
+    | (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R2) @ #b)"
+
+lemma authA_F_CS [reuse]:
+  "All vid fid R1 R2 R3 SK #i.
+      F_Accept(fid, vid, R1, R2, R3, SK) @ #i
+   ==>
+      (Ex #j. CS_Accept(vid, fid, R1, R2, R3, SK) @ #j & #j < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)
+    | (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R2) @ #b)"
+
+lemma authA_CS_V [reuse]:
+  "All vid fid R1 R2 #i.
+      CS_Recv(vid, fid, R1, R2) @ #i
+   ==>
+      (Ex #j. V_Start(vid, fid, R1) @ #j & #j < #i)
+    | (Ex #a. RevV(vid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)"
+
+lemma authA_CS_F [reuse]:
+  "All vid fid R1 R2 #i.
+      CS_Recv(vid, fid, R1, R2) @ #i
+   ==>
+      (Ex #j. F_Recv(fid, vid, R1, R2) @ #j & #j < #i)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)"
+
+lemma authB_V_F [reuse]:
+  "All vid fid R4 R5 SK #i.
+      VH_Accept(vid, fid, R4, R5, SK) @ #i
+   ==>
+      (Ex #j. FH_Accept(fid, vid, R4, R5, SK) @ #j & #j < #i)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R4) @ #b)"
+
+lemma authB_F_V [reuse]:
+  "All vid fid R4 R5 SK #i.
+      FH_Accept(fid, vid, R4, R5, SK) @ #i
+   ==>
+      (Ex #j. VH_Start(vid, fid, R4) @ #j & #j < #i)
+    | (Ex #a. RevV(vid) @ #a & #a < #i)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)"
+
+/* ------------------------------------------------------------------ */
+/* Session-key secrecy (PFS and ephemeral-secret leakage)             */
+/* ------------------------------------------------------------------ */
+
+lemma secA_vehicle:
+  "All vid fid R1 R3 SK #i #j.
+      V_Accept(vid, fid, R1, R3, SK) @ #i & K(SK) @ #j
+   ==>
+      (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R1) @ #b)
+    | (Ex R2 #a #b #c. F_Recv(fid, vid, R1, R2) @ #c & RevF(fid) @ #a & RevEphF(fid, R2) @ #b)
+    | (Ex #a #b. RevC() @ #a & RevEphC(R3) @ #b)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)"
+
+lemma secA_fog:
+  "All vid fid R1 R2 R3 SK #i #j.
+      F_Accept(fid, vid, R1, R2, R3, SK) @ #i & K(SK) @ #j
+   ==>
+      (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R2) @ #b)
+    | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R1) @ #b)
+    | (Ex #a #b. RevC() @ #a & RevEphC(R3) @ #b)
+    | (Ex #a. RevC() @ #a & #a < #i)
+    | (Ex #a. RevV(vid) @ #a & #a < #i)"
+
+lemma secA_cloud:
+  "All vid fid R1 R2 R3 SK #i #j.
+      CS_Accept(vid, fid, R1, R2, R3, SK) @ #i & K(SK) @ #j
+   ==>
+      (Ex #a #b. RevC() @ #a & RevEphC(R3) @ #b)
+    | (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R2) @ #b)
+    | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R1) @ #b)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a. RevV(vid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)"
+
+lemma secB_vehicle:
+  "All vid fid R4 R5 SK #i #j.
+      VH_Accept(vid, fid, R4, R5, SK) @ #i & K(SK) @ #j
+   ==>
+      (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R4) @ #b)
+    | (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R5) @ #b)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)"
+
+lemma secB_fog:
+  "All vid fid R4 R5 SK #i #j.
+      FH_Accept(fid, vid, R4, R5, SK) @ #i & K(SK) @ #j
+   ==>
+      (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R5) @ #b)
+    | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R4) @ #b)
+    | (Ex #a. RevV(vid) @ #a & #a < #i)
+    | (Ex #a. RevF(fid) @ #a & #a < #i)
+    | (Ex #a. RevC() @ #a & #a < #i)"
+
+/* ------------------------------------------------------------------ */
+/* Anonymity and absence of key escrow                                */
+/* ------------------------------------------------------------------ */
+
+lemma anonymity:
+  "All vid sv #i #j. VehLtk(vid, sv) @ #i & K(vid) @ #j
+   ==>
+      (Ex #a. RevV(vid) @ #a)
+    | (Ex #a. RevC() @ #a)
+    | (Ex f R #a #b. V_Start(vid, f, R) @ #b & RevF(f) @ #a)
+    | (Ex f R #a #b. VH_Start(vid, f, R) @ #b & RevF(f) @ #a)"
+
+lemma no_escrow_V:
+  "All vid sv #i #j. VehLtk(vid, sv) @ #i & K(sv) @ #j ==> Ex #a. RevV(vid) @ #a"
+
+lemma no_escrow_F:
+  "All fid sf #i #j. FogLtk(fid, sf) @ #i & K(sf) @ #j ==> Ex #a. RevF(fid) @ #a"
+
+end

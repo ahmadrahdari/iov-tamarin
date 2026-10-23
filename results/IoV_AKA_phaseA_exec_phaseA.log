@@ -1,0 +1,1494 @@
+maude tool: 'maude'
+ checking version: 3.5. OK.
+ checking installation: OK.
+[Theory IoV_AKA_phaseA] Theory loaded
+[Theory IoV_AKA_phaseA] Theory translated
+[Theory IoV_AKA_phaseA] Theory closed
+
+[Saturating Sources] Step 1 (Max 5)
+[Saturating Sources] Done
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+theory IoV_AKA_phaseA begin
+
+// Function signature and definition of the equational theory E
+
+builtins: diffie-hellman
+functions: fst/1, h/1, pair/2, poly/2[private,destructor], sdec/2,
+           senc/2, snd/1
+equations:
+    fst(<x.1, x.2>) = x.1,
+    sdec(senc(x.1, x.2), x.2) = x.1,
+    snd(<x.1, x.2>) = x.2
+
+
+
+
+
+
+
+
+
+
+
+restriction OnlyOnceCS:
+  "∀ #i #j. ((CSSetup( ) @ #i) ∧ (CSSetup( ) @ #j)) ⇒ (#i = #j)"
+  // safety formula
+
+restriction FogReplayCache:
+  "∀ fid R #i #j.
+    ((F_Cache( fid, R ) @ #i) ∧ (F_Cache( fid, R ) @ #j)) ⇒ (#i = #j)"
+  // safety formula
+
+restriction CloudReplayCache:
+  "∀ R #i #j. ((CS_Cache( R ) @ #i) ∧ (CS_Cache( R ) @ #j)) ⇒ (#i = #j)"
+  // safety formula
+
+rule (modulo E) CS_Setup:
+   [ Fr( ~sc ) ]
+  --[ CSSetup( ) ]->
+   [ !LtkC( ~sc ), !PkC( 'g'^~sc ), Out( 'g'^~sc ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Fog_Register:
+   [ Fr( ~fid ), Fr( ~sf ), Fr( ~kjc ), !PkC( pc ) ]
+  --[ FogLtk( ~fid, ~sf ), FogKey( ~fid, ~kjc ) ]->
+   [
+   !LtkF( ~fid, ~sf, ~kjc ), !PkF( ~fid, 'g'^~sf ), !RegF( ~fid, ~kjc ),
+   Out( <~fid, 'g'^~sf> )
+   ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Vehicle_Register:
+   [ Fr( ~vid ), Fr( ~sv ), Fr( ~kic ), !PkC( pc ) ]
+  --[ VehLtk( ~vid, ~sv ), VehKey( ~vid, ~kic ) ]->
+   [ !LtkV( ~vid, ~sv, ~kic ), !RegV( ~vid, ~kic ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Corrupt_V:
+   [ !LtkV( ~vid, ~sv, ~kic ) ]
+  --[ RevV( ~vid ) ]->
+   [ Out( <~vid, ~sv, ~kic> ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Corrupt_V_share:
+   [ !LtkV( ~vid, ~sv, ~kic ), !PkF( ~fid, pf ) ]
+  --[ RevV( ~vid ) ]->
+   [ Out( poly(~vid, ~fid) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Corrupt_F:
+   [ !LtkF( ~fid, ~sf, ~kjc ) ] --[ RevF( ~fid ) ]-> [ Out( <~sf, ~kjc> ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Corrupt_F_share:
+   [ !LtkF( ~fid, ~sf, ~kjc ), !RegV( ~vid, kic ) ]
+  --[ RevF( ~fid ) ]->
+   [ Out( poly(~vid, ~fid) ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Corrupt_CS:
+   [ !LtkC( ~sc ) ] --[ RevC( ) ]-> [ Out( ~sc ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) Corrupt_CS_db:
+   [ !LtkC( ~sc ), !RegV( ~vid, ~kic ), !RegF( ~fid, ~kjc ) ]
+  --[ RevC( ) ]->
+   [ Out( <~kic, ~kjc, poly(~vid, ~fid)> ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) ESReveal_V:
+   [ !EphV( ~vid, R, ~e ) ] --[ RevEphV( ~vid, R ) ]-> [ Out( ~e ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) ESReveal_F:
+   [ !EphF( ~fid, R, ~e ) ] --[ RevEphF( ~fid, R ) ]-> [ Out( ~e ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) ESReveal_CS:
+   [ !EphC( R, ~e ) ] --[ RevEphC( R ) ]-> [ Out( ~e ) ]
+
+  /* has exactly the trivial AC variant */
+
+rule (modulo E) V_1:
+   [ !LtkV( ~vid, ~sv, ~kic ), !PkF( ~fid, pf ), Fr( ~e1 ) ]
+  --[
+  V_Start( ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>) ),
+  V_Eph( ~vid, ~e1, ~sv, 'g'^h(<'nx', ~e1, ~sv>) )
+  ]->
+   [
+   V_St( ~vid, ~fid, ~e1, ~sv, ~kic, 'g'^h(<'nx', ~e1, ~sv>),
+         pf^h(<'nx', ~e1, ~sv>)
+   ),
+   !EphV( ~vid, 'g'^h(<'nx', ~e1, ~sv>), ~e1 ),
+   Out( <'g'^h(<'nx', ~e1, ~sv>), 
+         senc(~vid, h(<'K1', pf^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e1, ~sv>)>)), 
+         h(<'sig', poly(~vid, ~fid), ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>)>), 
+         h(<'A', ~kic, ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>)>)>
+   )
+   ]
+
+  /*
+  rule (modulo AC) V_1:
+     [ !LtkV( ~vid, ~sv, ~kic ), !PkF( ~fid, pf ), Fr( ~e1 ) ]
+    --[
+    V_Start( ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>) ),
+    V_Eph( ~vid, ~e1, ~sv, 'g'^h(<'nx', ~e1, ~sv>) )
+    ]->
+     [
+     V_St( ~vid, ~fid, ~e1, ~sv, ~kic, 'g'^h(<'nx', ~e1, ~sv>), z ),
+     !EphV( ~vid, 'g'^h(<'nx', ~e1, ~sv>), ~e1 ),
+     Out( <'g'^h(<'nx', ~e1, ~sv>), 
+           senc(~vid, h(<'K1', z, 'g'^h(<'nx', ~e1, ~sv>)>)), 
+           h(<'sig', poly(~vid, ~fid), ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>)>), 
+           h(<'A', ~kic, ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>)>)>
+     )
+     ]
+    variants (modulo AC)
+    1. ~e1   = ~e1.27
+       ~sv   = ~sv.30
+       pf    = pf.32
+       z     = pf.32^h(<'nx', ~e1.27, ~sv.30>)
+    
+    2. ~e1   = ~e1.29
+       ~sv   = ~sv.32
+       pf    = z.36^inv(h(<'nx', ~e1.29, ~sv.32>))
+       z     = z.36
+    
+    3. ~e1   = ~e1.221
+       ~sv   = ~sv.224
+       pf    = x.439^x.440
+       z     = x.439^(x.440*h(<'nx', ~e1.221, ~sv.224>))
+    
+    4. ~e1   = ~e1.226
+       ~sv   = ~sv.229
+       pf    = x.449^inv((x.450*h(<'nx', ~e1.226, ~sv.229>)))
+       z     = x.449^inv(x.450)
+    
+    5. ~e1   = ~e1.226
+       ~sv   = ~sv.229
+       pf    = x.449^(x.450*inv(h(<'nx', ~e1.226, ~sv.229>)))
+       z     = x.449^x.450
+    
+    6. ~e1   = ~e1.227
+       ~sv   = ~sv.230
+       pf    = x.450^(x.451*inv((x.452*h(<'nx', ~e1.227, ~sv.230>))))
+       z     = x.450^(x.451*inv(x.452))
+    
+    7. pf    = DH_neutral
+       z     = DH_neutral
+  */
+
+rule (modulo E) F_1:
+   [
+   !LtkF( ~fid, ~sf, ~kjc ),
+   In( <R1, senc(~vid, h(<'K1', R1^~sf, R1>)), 
+        h(<'sig', poly(~vid, ~fid), ~vid, ~fid, R1>), Ai>
+   )
+   ]
+  --[ F_Cache( ~fid, R1 ) ]->
+   [ F_St1( ~fid, ~vid, R1, R1^~sf, Ai ) ]
+
+  /*
+  rule (modulo AC) F_1:
+     [
+     !LtkF( ~fid, ~sf, ~kjc ),
+     In( <R1, senc(~vid, h(<'K1', z, R1>)), 
+          h(<'sig', poly(~vid, ~fid), ~vid, ~fid, R1>), Ai>
+     )
+     ]
+    --[ F_Cache( ~fid, R1 ) ]->
+     [ F_St1( ~fid, ~vid, R1, z, Ai ) ]
+    variants (modulo AC)
+    1. ~sf   = ~sf.13
+       R1    = R1.16
+       z     = R1.16^~sf.13
+    
+    2. ~sf   = ~sf.15
+       R1    = z.20^inv(~sf.15)
+       z     = z.20
+    
+    3. ~sf   = ~sf.18
+       R1    = x.31^x.32
+       z     = x.31^(~sf.18*x.32)
+    
+    4. ~sf   = ~sf.21
+       R1    = x.37^inv((~sf.21*x.38))
+       z     = x.37^inv(x.38)
+    
+    5. ~sf   = ~sf.21
+       R1    = x.37^(x.38*inv(~sf.21))
+       z     = x.37^x.38
+    
+    6. ~sf   = ~sf.22
+       R1    = x.38^(x.39*inv((~sf.22*x.40)))
+       z     = x.38^(x.39*inv(x.40))
+    
+    7. R1    = DH_neutral
+       z     = DH_neutral
+  */
+
+rule (modulo E) F_2:
+   [
+   F_St1( ~fid, ~vid, R1, Q1, Ai ), !LtkF( ~fid, ~sf, ~kjc ), !PkC( pc ),
+   Fr( ~e2 )
+   ]
+  --[
+  F_Recv( ~fid, ~vid, R1, 'g'^h(<'nx', ~e2, ~sf>) ),
+  F_Eph( ~fid, ~e2, ~sf, 'g'^h(<'nx', ~e2, ~sf>) )
+  ]->
+   [
+   F_St2( ~fid, ~vid, ~e2, ~sf, ~kjc, R1, 'g'^h(<'nx', ~e2, ~sf>), Q1,
+          pc^h(<'nx', ~e2, ~sf>)
+   ),
+   !EphF( ~fid, 'g'^h(<'nx', ~e2, ~sf>), ~e2 ),
+   Out( <~fid, R1, 'g'^h(<'nx', ~e2, ~sf>), 
+         senc(~vid,
+              h(<'K2', pc^h(<'nx', ~e2, ~sf>), ~kjc, R1, 'g'^h(<'nx', ~e2, ~sf>)>)), 
+         Ai>
+   )
+   ]
+
+  /*
+  rule (modulo AC) F_2:
+     [
+     F_St1( ~fid, ~vid, R1, Q1, Ai ), !LtkF( ~fid, ~sf, ~kjc ), !PkC( pc ),
+     Fr( ~e2 )
+     ]
+    --[
+    F_Recv( ~fid, ~vid, R1, 'g'^h(<'nx', ~e2, ~sf>) ),
+    F_Eph( ~fid, ~e2, ~sf, 'g'^h(<'nx', ~e2, ~sf>) )
+    ]->
+     [
+     F_St2( ~fid, ~vid, ~e2, ~sf, ~kjc, R1, 'g'^h(<'nx', ~e2, ~sf>), Q1, z ),
+     !EphF( ~fid, 'g'^h(<'nx', ~e2, ~sf>), ~e2 ),
+     Out( <~fid, R1, 'g'^h(<'nx', ~e2, ~sf>), 
+           senc(~vid, h(<'K2', z, ~kjc, R1, 'g'^h(<'nx', ~e2, ~sf>)>)), Ai>
+     )
+     ]
+    variants (modulo AC)
+    1. ~e2   = ~e2.31
+       ~sf   = ~sf.34
+       pc    = pc.39
+       z     = pc.39^h(<'nx', ~e2.31, ~sf.34>)
+    
+    2. ~e2   = ~e2.33
+       ~sf   = ~sf.36
+       pc    = z.43^inv(h(<'nx', ~e2.33, ~sf.36>))
+       z     = z.43
+    
+    3. ~e2   = ~e2.196
+       ~sf   = ~sf.199
+       pc    = x.389^x.390
+       z     = x.389^(x.390*h(<'nx', ~e2.196, ~sf.199>))
+    
+    4. ~e2   = ~e2.204
+       ~sf   = ~sf.207
+       pc    = x.405^inv((x.406*h(<'nx', ~e2.204, ~sf.207>)))
+       z     = x.405^inv(x.406)
+    
+    5. ~e2   = ~e2.204
+       ~sf   = ~sf.207
+       pc    = x.405^(x.406*inv(h(<'nx', ~e2.204, ~sf.207>)))
+       z     = x.405^x.406
+    
+    6. ~e2   = ~e2.205
+       ~sf   = ~sf.208
+       pc    = x.406^(x.407*inv((x.408*h(<'nx', ~e2.205, ~sf.208>))))
+       z     = x.406^(x.407*inv(x.408))
+    
+    7. pc    = DH_neutral
+       z     = DH_neutral
+  */
+
+rule (modulo E) CS_1:
+   [
+   !LtkC( ~sc ), !RegF( ~fid, ~kjc ), !RegV( ~vid, ~kic ),
+   In( <~fid, R1, R2, senc(~vid, h(<'K2', R2^~sc, ~kjc, R1, R2>)), 
+        h(<'A', ~kic, ~vid, ~fid, R1>)>
+   )
+   ]
+  --[ CS_Cache( R2 ), CS_Cache( R1 ), CS_Recv( ~vid, ~fid, R1, R2 ) ]->
+   [ CS_St1( ~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, R2^~sc ) ]
+
+  /*
+  rule (modulo AC) CS_1:
+     [
+     !LtkC( ~sc ), !RegF( ~fid, ~kjc ), !RegV( ~vid, ~kic ),
+     In( <~fid, R1, R2, senc(~vid, h(<'K2', z, ~kjc, R1, R2>)), 
+          h(<'A', ~kic, ~vid, ~fid, R1>)>
+     )
+     ]
+    --[ CS_Cache( R2 ), CS_Cache( R1 ), CS_Recv( ~vid, ~fid, R1, R2 ) ]->
+     [ CS_St1( ~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, z ) ]
+    variants (modulo AC)
+    1. ~sc   = ~sc.14
+       R2    = R2.17
+       z     = R2.17^~sc.14
+    
+    2. ~sc   = ~sc.16
+       R2    = z.21^inv(~sc.16)
+       z     = z.21
+    
+    3. ~sc   = ~sc.19
+       R2    = x.32^x.33
+       z     = x.32^(~sc.19*x.33)
+    
+    4. ~sc   = ~sc.22
+       R2    = x.38^inv((~sc.22*x.39))
+       z     = x.38^inv(x.39)
+    
+    5. ~sc   = ~sc.22
+       R2    = x.38^(x.39*inv(~sc.22))
+       z     = x.38^x.39
+    
+    6. ~sc   = ~sc.23
+       R2    = x.39^(x.40*inv((~sc.23*x.41)))
+       z     = x.39^(x.40*inv(x.41))
+    
+    7. R2    = DH_neutral
+       z     = DH_neutral
+  */
+
+rule (modulo E) CS_2:
+   [ CS_St1( ~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, Q2 ), Fr( ~e3 ) ]
+  --[
+  CS_Accept( ~vid, ~fid, R1, R2, 'g'^h(<'nx', ~e3, ~sc>),
+             h(<'SK', h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>), 
+                R2^h(<'nx', ~e3, ~sc>), Q2>)
+  ),
+  C_Eph( ~e3, ~sc, 'g'^h(<'nx', ~e3, ~sc>) )
+  ]->
+   [
+   !EphC( 'g'^h(<'nx', ~e3, ~sc>), ~e3 ),
+   Out( <'g'^h(<'nx', ~e3, ~sc>), 
+         senc(h(<'SK', h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>), 
+                 R2^h(<'nx', ~e3, ~sc>), Q2>),
+              h(<'mask', R1^h(<'nx', ~e3, ~sc>), ~kic, 
+                 h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>)>)), 
+         h(<'d1', 
+            h(<'SK', h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>), 
+               R2^h(<'nx', ~e3, ~sc>), Q2>), 
+            ~kjc, h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>)>)
+        >
+   )
+   ]
+
+  /*
+  rule (modulo AC) CS_2:
+     [ CS_St1( ~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, Q2 ), Fr( ~e3 ) ]
+    --[
+    CS_Accept( ~vid, ~fid, R1, R2, 'g'^h(<'nx', ~e3, ~sc>),
+               h(<'SK', h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>), z, Q2>)
+    ),
+    C_Eph( ~e3, ~sc, 'g'^h(<'nx', ~e3, ~sc>) )
+    ]->
+     [
+     !EphC( 'g'^h(<'nx', ~e3, ~sc>), ~e3 ),
+     Out( <'g'^h(<'nx', ~e3, ~sc>), 
+           senc(h(<'SK', h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>), z, Q2
+                  >),
+                h(<'mask', z.1, ~kic, h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>)
+                  >)), 
+           h(<'d1', 
+              h(<'SK', h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>), z, Q2>), 
+              ~kjc, h(<'h2', ~vid, ~fid, R1, 'g'^h(<'nx', ~e3, ~sc>)>)>)
+          >
+     )
+     ]
+    variants (modulo AC)
+     1. ~e3   = ~e3.24
+        ~sc   = ~sc.28
+        R1    = R1.31
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = R1.31^h(<'nx', ~e3.24, ~sc.28>)
+    
+     2. ~e3   = ~e3.25
+        ~sc   = ~sc.29
+        R1    = R1.32
+        R2    = R2.33
+        z     = R2.33^h(<'nx', ~e3.25, ~sc.29>)
+        z.1   = R1.32^h(<'nx', ~e3.25, ~sc.29>)
+    
+     3. ~e3   = ~e3.25
+        ~sc   = ~sc.29
+        R1    = DH_neutral
+        R2    = R2.33
+        z     = R2.33^h(<'nx', ~e3.25, ~sc.29>)
+        z.1   = DH_neutral
+    
+     4. ~e3   = ~e3.29
+        ~sc   = ~sc.33
+        R1    = R1.36
+        R2    = z.41^inv(h(<'nx', ~e3.29, ~sc.33>))
+        z     = z.41
+        z.1   = R1.36^h(<'nx', ~e3.29, ~sc.33>)
+    
+     5. ~e3   = ~e3.29
+        ~sc   = ~sc.33
+        R1    = DH_neutral
+        R2    = z.41^inv(h(<'nx', ~e3.29, ~sc.33>))
+        z     = z.41
+        z.1   = DH_neutral
+    
+     6. ~e3   = ~e3.31
+        ~sc   = ~sc.35
+        R1    = z.45^inv(h(<'nx', ~e3.31, ~sc.35>))
+        R2    = R2.39
+        z     = R2.39^h(<'nx', ~e3.31, ~sc.35>)
+        z.1   = z.45
+    
+     7. ~e3   = ~e3.31
+        ~sc   = ~sc.35
+        R1    = z.45^inv(h(<'nx', ~e3.31, ~sc.35>))
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = z.45
+    
+     8. ~e3   = ~e3.31
+        ~sc   = ~sc.35
+        R1    = z.45^inv(h(<'nx', ~e3.31, ~sc.35>))
+        R2    = z.43^inv(h(<'nx', ~e3.31, ~sc.35>))
+        z     = z.43
+        z.1   = z.45
+    
+     9. ~e3   = ~e3.301
+        ~sc   = ~sc.305
+        R1    = R1.308
+        R2    = x.599^x.600
+        z     = x.599^(x.600*h(<'nx', ~e3.301, ~sc.305>))
+        z.1   = R1.308^h(<'nx', ~e3.301, ~sc.305>)
+    
+    10. ~e3   = ~e3.301
+        ~sc   = ~sc.305
+        R1    = DH_neutral
+        R2    = x.599^x.600
+        z     = x.599^(x.600*h(<'nx', ~e3.301, ~sc.305>))
+        z.1   = DH_neutral
+    
+    11. ~e3   = ~e3.301
+        ~sc   = ~sc.305
+        R1    = x.599^x.600
+        R2    = R2.309
+        z     = R2.309^h(<'nx', ~e3.301, ~sc.305>)
+        z.1   = x.599^(x.600*h(<'nx', ~e3.301, ~sc.305>))
+    
+    12. ~e3   = ~e3.301
+        ~sc   = ~sc.305
+        R1    = x.599^x.600
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = x.599^(x.600*h(<'nx', ~e3.301, ~sc.305>))
+    
+    13. ~e3   = ~e3.303
+        ~sc   = ~sc.307
+        R1    = x.601^x.602
+        R2    = x.603^x.604
+        z     = x.603^(x.604*h(<'nx', ~e3.303, ~sc.307>))
+        z.1   = x.601^(x.602*h(<'nx', ~e3.303, ~sc.307>))
+    
+    14. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = DH_neutral
+        R2    = x.613^inv((x.614*h(<'nx', ~e3.308, ~sc.312>)))
+        z     = x.613^inv(x.614)
+        z.1   = DH_neutral
+    
+    15. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = DH_neutral
+        R2    = x.613^(x.614*inv(h(<'nx', ~e3.308, ~sc.312>)))
+        z     = x.613^x.614
+        z.1   = DH_neutral
+    
+    16. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^x.614
+        R2    = z.320^inv(h(<'nx', ~e3.308, ~sc.312>))
+        z     = z.320
+        z.1   = x.613^(x.614*h(<'nx', ~e3.308, ~sc.312>))
+    
+    17. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^inv((x.614*h(<'nx', ~e3.308, ~sc.312>)))
+        R2    = R2.316
+        z     = R2.316^h(<'nx', ~e3.308, ~sc.312>)
+        z.1   = x.613^inv(x.614)
+    
+    18. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^inv((x.614*h(<'nx', ~e3.308, ~sc.312>)))
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = x.613^inv(x.614)
+    
+    19. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^inv((x.614*h(<'nx', ~e3.308, ~sc.312>)))
+        R2    = z.320^inv(h(<'nx', ~e3.308, ~sc.312>))
+        z     = z.320
+        z.1   = x.613^inv(x.614)
+    
+    20. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^(x.614*inv(h(<'nx', ~e3.308, ~sc.312>)))
+        R2    = R2.316
+        z     = R2.316^h(<'nx', ~e3.308, ~sc.312>)
+        z.1   = x.613^x.614
+    
+    21. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^(x.614*inv(h(<'nx', ~e3.308, ~sc.312>)))
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = x.613^x.614
+    
+    22. ~e3   = ~e3.308
+        ~sc   = ~sc.312
+        R1    = x.613^(x.614*inv(h(<'nx', ~e3.308, ~sc.312>)))
+        R2    = z.320^inv(h(<'nx', ~e3.308, ~sc.312>))
+        z     = z.320
+        z.1   = x.613^x.614
+    
+    23. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = R1.316
+        R2    = x.615^inv((x.616*h(<'nx', ~e3.309, ~sc.313>)))
+        z     = x.615^inv(x.616)
+        z.1   = R1.316^h(<'nx', ~e3.309, ~sc.313>)
+    
+    24. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = R1.316
+        R2    = x.615^(x.616*inv(h(<'nx', ~e3.309, ~sc.313>)))
+        z     = x.615^x.616
+        z.1   = R1.316^h(<'nx', ~e3.309, ~sc.313>)
+    
+    25. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = DH_neutral
+        R2    = x.614^(x.615*inv((x.616*h(<'nx', ~e3.309, ~sc.313>))))
+        z     = x.614^(x.615*inv(x.616))
+        z.1   = DH_neutral
+    
+    26. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = z.323^inv(h(<'nx', ~e3.309, ~sc.313>))
+        R2    = x.615^x.616
+        z     = x.615^(x.616*h(<'nx', ~e3.309, ~sc.313>))
+        z.1   = z.323
+    
+    27. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = z.323^inv(h(<'nx', ~e3.309, ~sc.313>))
+        R2    = x.615^inv((x.616*h(<'nx', ~e3.309, ~sc.313>)))
+        z     = x.615^inv(x.616)
+        z.1   = z.323
+    
+    28. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = z.323^inv(h(<'nx', ~e3.309, ~sc.313>))
+        R2    = x.615^(x.616*inv(h(<'nx', ~e3.309, ~sc.313>)))
+        z     = x.615^x.616
+        z.1   = z.323
+    
+    29. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = x.614^(x.615*inv((x.616*h(<'nx', ~e3.309, ~sc.313>))))
+        R2    = R2.317
+        z     = R2.317^h(<'nx', ~e3.309, ~sc.313>)
+        z.1   = x.614^(x.615*inv(x.616))
+    
+    30. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = x.614^(x.615*inv((x.616*h(<'nx', ~e3.309, ~sc.313>))))
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = x.614^(x.615*inv(x.616))
+    
+    31. ~e3   = ~e3.309
+        ~sc   = ~sc.313
+        R1    = x.614^(x.615*inv((x.616*h(<'nx', ~e3.309, ~sc.313>))))
+        R2    = z.321^inv(h(<'nx', ~e3.309, ~sc.313>))
+        z     = z.321
+        z.1   = x.614^(x.615*inv(x.616))
+    
+    32. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = R1.317
+        R2    = x.616^(x.617*inv((x.618*h(<'nx', ~e3.310, ~sc.314>))))
+        z     = x.616^(x.617*inv(x.618))
+        z.1   = R1.317^h(<'nx', ~e3.310, ~sc.314>)
+    
+    33. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = z.324^inv(h(<'nx', ~e3.310, ~sc.314>))
+        R2    = x.616^(x.617*inv((x.618*h(<'nx', ~e3.310, ~sc.314>))))
+        z     = x.616^(x.617*inv(x.618))
+        z.1   = z.324
+    
+    34. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^x.616
+        R2    = x.617^inv((x.618*h(<'nx', ~e3.310, ~sc.314>)))
+        z     = x.617^inv(x.618)
+        z.1   = x.615^(x.616*h(<'nx', ~e3.310, ~sc.314>))
+    
+    35. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^x.616
+        R2    = x.617^(x.618*inv(h(<'nx', ~e3.310, ~sc.314>)))
+        z     = x.617^x.618
+        z.1   = x.615^(x.616*h(<'nx', ~e3.310, ~sc.314>))
+    
+    36. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^inv((x.616*h(<'nx', ~e3.310, ~sc.314>)))
+        R2    = x.617^x.618
+        z     = x.617^(x.618*h(<'nx', ~e3.310, ~sc.314>))
+        z.1   = x.615^inv(x.616)
+    
+    37. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^inv((x.616*h(<'nx', ~e3.310, ~sc.314>)))
+        R2    = x.617^inv((x.618*h(<'nx', ~e3.310, ~sc.314>)))
+        z     = x.617^inv(x.618)
+        z.1   = x.615^inv(x.616)
+    
+    38. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^inv((x.616*h(<'nx', ~e3.310, ~sc.314>)))
+        R2    = x.617^(x.618*inv(h(<'nx', ~e3.310, ~sc.314>)))
+        z     = x.617^x.618
+        z.1   = x.615^inv(x.616)
+    
+    39. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^(x.616*inv(h(<'nx', ~e3.310, ~sc.314>)))
+        R2    = x.617^x.618
+        z     = x.617^(x.618*h(<'nx', ~e3.310, ~sc.314>))
+        z.1   = x.615^x.616
+    
+    40. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^(x.616*inv(h(<'nx', ~e3.310, ~sc.314>)))
+        R2    = x.617^inv((x.618*h(<'nx', ~e3.310, ~sc.314>)))
+        z     = x.617^inv(x.618)
+        z.1   = x.615^x.616
+    
+    41. ~e3   = ~e3.310
+        ~sc   = ~sc.314
+        R1    = x.615^(x.616*inv(h(<'nx', ~e3.310, ~sc.314>)))
+        R2    = x.617^(x.618*inv(h(<'nx', ~e3.310, ~sc.314>)))
+        z     = x.617^x.618
+        z.1   = x.615^x.616
+    
+    42. ~e3   = ~e3.311
+        ~sc   = ~sc.315
+        R1    = x.616^x.617
+        R2    = x.618^(x.619*inv((x.620*h(<'nx', ~e3.311, ~sc.315>))))
+        z     = x.618^(x.619*inv(x.620))
+        z.1   = x.616^(x.617*h(<'nx', ~e3.311, ~sc.315>))
+    
+    43. ~e3   = ~e3.311
+        ~sc   = ~sc.315
+        R1    = x.616^inv((x.617*h(<'nx', ~e3.311, ~sc.315>)))
+        R2    = x.618^(x.619*inv((x.620*h(<'nx', ~e3.311, ~sc.315>))))
+        z     = x.618^(x.619*inv(x.620))
+        z.1   = x.616^inv(x.617)
+    
+    44. ~e3   = ~e3.311
+        ~sc   = ~sc.315
+        R1    = x.616^(x.617*inv(h(<'nx', ~e3.311, ~sc.315>)))
+        R2    = x.618^(x.619*inv((x.620*h(<'nx', ~e3.311, ~sc.315>))))
+        z     = x.618^(x.619*inv(x.620))
+        z.1   = x.616^x.617
+    
+    45. ~e3   = ~e3.311
+        ~sc   = ~sc.315
+        R1    = x.616^(x.617*inv((x.618*h(<'nx', ~e3.311, ~sc.315>))))
+        R2    = x.619^x.620
+        z     = x.619^(x.620*h(<'nx', ~e3.311, ~sc.315>))
+        z.1   = x.616^(x.617*inv(x.618))
+    
+    46. ~e3   = ~e3.311
+        ~sc   = ~sc.315
+        R1    = x.616^(x.617*inv((x.618*h(<'nx', ~e3.311, ~sc.315>))))
+        R2    = x.619^inv((x.620*h(<'nx', ~e3.311, ~sc.315>)))
+        z     = x.619^inv(x.620)
+        z.1   = x.616^(x.617*inv(x.618))
+    
+    47. ~e3   = ~e3.311
+        ~sc   = ~sc.315
+        R1    = x.616^(x.617*inv((x.618*h(<'nx', ~e3.311, ~sc.315>))))
+        R2    = x.619^(x.620*inv(h(<'nx', ~e3.311, ~sc.315>)))
+        z     = x.619^x.620
+        z.1   = x.616^(x.617*inv(x.618))
+    
+    48. ~e3   = ~e3.312
+        ~sc   = ~sc.316
+        R1    = x.617^(x.618*inv((x.619*h(<'nx', ~e3.312, ~sc.316>))))
+        R2    = x.620^(x.621*inv((x.622*h(<'nx', ~e3.312, ~sc.316>))))
+        z     = x.620^(x.621*inv(x.622))
+        z.1   = x.617^(x.618*inv(x.619))
+    
+    49. R1    = DH_neutral
+        R2    = DH_neutral
+        z     = DH_neutral
+        z.1   = DH_neutral
+  */
+
+rule (modulo E) F_3:
+   [
+   F_St2( ~fid, ~vid, ~e2, ~sf, ~kjc, R1, R2, Q1, Q2 ),
+   In( <R3, Nc, 
+        h(<'d1', 
+           h(<'SK', h(<'h2', ~vid, ~fid, R1, R3>), R3^h(<'nx', ~e2, ~sf>), Q2>), 
+           ~kjc, h(<'h2', ~vid, ~fid, R1, R3>)>)
+       >
+   )
+   ]
+  --[
+  F_Accept( ~fid, ~vid, R1, R2, R3,
+            h(<'SK', h(<'h2', ~vid, ~fid, R1, R3>), R3^h(<'nx', ~e2, ~sf>), Q2>)
+  )
+  ]->
+   [
+   Out( <R3, Nc, 
+         h(<'d3', 
+            h(<'SK', h(<'h2', ~vid, ~fid, R1, R3>), R3^h(<'nx', ~e2, ~sf>), Q2>), 
+            Q1, h(<'h2', ~vid, ~fid, R1, R3>)>)
+        >
+   )
+   ]
+
+  /*
+  rule (modulo AC) F_3:
+     [
+     F_St2( ~fid, ~vid, ~e2, ~sf, ~kjc, R1, R2, Q1, Q2 ),
+     In( <R3, Nc, 
+          h(<'d1', h(<'SK', h(<'h2', ~vid, ~fid, R1, R3>), z, Q2>), ~kjc, 
+             h(<'h2', ~vid, ~fid, R1, R3>)>)
+         >
+     )
+     ]
+    --[
+    F_Accept( ~fid, ~vid, R1, R2, R3,
+              h(<'SK', h(<'h2', ~vid, ~fid, R1, R3>), z, Q2>)
+    )
+    ]->
+     [
+     Out( <R3, Nc, 
+           h(<'d3', h(<'SK', h(<'h2', ~vid, ~fid, R1, R3>), z, Q2>), Q1, 
+              h(<'h2', ~vid, ~fid, R1, R3>)>)
+          >
+     )
+     ]
+    variants (modulo AC)
+    1. ~e2   = ~e2.27
+       ~sf   = ~sf.30
+       R3    = R3.37
+       z     = R3.37^h(<'nx', ~e2.27, ~sf.30>)
+    
+    2. ~e2   = ~e2.31
+       ~sf   = ~sf.34
+       R3    = z.45^inv(h(<'nx', ~e2.31, ~sf.34>))
+       z     = z.45
+    
+    3. ~e2   = ~e2.66
+       ~sf   = ~sf.69
+       R3    = x.129^x.130
+       z     = x.129^(x.130*h(<'nx', ~e2.66, ~sf.69>))
+    
+    4. ~e2   = ~e2.76
+       ~sf   = ~sf.79
+       R3    = x.149^inv((x.150*h(<'nx', ~e2.76, ~sf.79>)))
+       z     = x.149^inv(x.150)
+    
+    5. ~e2   = ~e2.76
+       ~sf   = ~sf.79
+       R3    = x.149^(x.150*inv(h(<'nx', ~e2.76, ~sf.79>)))
+       z     = x.149^x.150
+    
+    6. ~e2   = ~e2.77
+       ~sf   = ~sf.80
+       R3    = x.150^(x.151*inv((x.152*h(<'nx', ~e2.77, ~sf.80>))))
+       z     = x.150^(x.151*inv(x.152))
+    
+    7. R3    = DH_neutral
+       z     = DH_neutral
+  */
+
+rule (modulo E) V_2:
+   [
+   V_St( ~vid, ~fid, ~e1, ~sv, ~kic, R1, Q1 ),
+   In( <R3, 
+        senc(SK,
+             h(<'mask', R3^h(<'nx', ~e1, ~sv>), ~kic, h(<'h2', ~vid, ~fid, R1, R3>)
+               >)), 
+        h(<'d3', SK, Q1, h(<'h2', ~vid, ~fid, R1, R3>)>)>
+   )
+   ]
+  --[ V_Accept( ~vid, ~fid, R1, R3, SK ) ]->
+   [ ]
+
+  /*
+  rule (modulo AC) V_2:
+     [
+     V_St( ~vid, ~fid, ~e1, ~sv, ~kic, R1, Q1 ),
+     In( <R3, senc(SK, h(<'mask', z, ~kic, h(<'h2', ~vid, ~fid, R1, R3>)>)), 
+          h(<'d3', SK, Q1, h(<'h2', ~vid, ~fid, R1, R3>)>)>
+     )
+     ]
+    --[ V_Accept( ~vid, ~fid, R1, R3, SK ) ]->
+     [ ]
+    variants (modulo AC)
+    1. ~e1   = ~e1.20
+       ~sv   = ~sv.23
+       R3    = R3.27
+       z     = R3.27^h(<'nx', ~e1.20, ~sv.23>)
+    
+    2. ~e1   = ~e1.23
+       ~sv   = ~sv.26
+       R3    = z.33^inv(h(<'nx', ~e1.23, ~sv.26>))
+       z     = z.33
+    
+    3. ~e1   = ~e1.40
+       ~sv   = ~sv.43
+       R3    = x.77^x.78
+       z     = x.77^(x.78*h(<'nx', ~e1.40, ~sv.43>))
+    
+    4. ~e1   = ~e1.47
+       ~sv   = ~sv.50
+       R3    = x.91^inv((x.92*h(<'nx', ~e1.47, ~sv.50>)))
+       z     = x.91^inv(x.92)
+    
+    5. ~e1   = ~e1.47
+       ~sv   = ~sv.50
+       R3    = x.91^(x.92*inv(h(<'nx', ~e1.47, ~sv.50>)))
+       z     = x.91^x.92
+    
+    6. ~e1   = ~e1.48
+       ~sv   = ~sv.51
+       R3    = x.92^(x.93*inv((x.94*h(<'nx', ~e1.48, ~sv.51>))))
+       z     = x.92^(x.93*inv(x.94))
+    
+    7. R3    = DH_neutral
+       z     = DH_neutral
+  */
+
+lemma ltk_V [reuse]:
+  all-traces
+  "∀ vid sv #i #j.
+    ((VehLtk( vid, sv ) @ #i) ∧ (!KU( sv ) @ #j)) ⇒
+    (∃ #r. (RevV( vid ) @ #r) ∧ (#r < #j))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid sv #i #j.
+  (VehLtk( vid, sv ) @ #i) ∧ (!KU( sv ) @ #j)
+ ∧
+  ∀ #r. (RevV( vid ) @ #r) ⇒ ¬(#r < #j)"
+*/
+by sorry
+
+lemma ltk_F [reuse]:
+  all-traces
+  "∀ fid sf #i #j.
+    ((FogLtk( fid, sf ) @ #i) ∧ (!KU( sf ) @ #j)) ⇒
+    (∃ #r. (RevF( fid ) @ #r) ∧ (#r < #j))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ fid sf #i #j.
+  (FogLtk( fid, sf ) @ #i) ∧ (!KU( sf ) @ #j)
+ ∧
+  ∀ #r. (RevF( fid ) @ #r) ⇒ ¬(#r < #j)"
+*/
+by sorry
+
+lemma key_ic [reuse]:
+  all-traces
+  "∀ vid k #i #j.
+    ((VehKey( vid, k ) @ #i) ∧ (!KU( k ) @ #j)) ⇒
+    ((∃ #r. (RevV( vid ) @ #r) ∧ (#r < #j)) ∨
+     (∃ #r. (RevC( ) @ #r) ∧ (#r < #j)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid k #i #j.
+  (VehKey( vid, k ) @ #i) ∧ (!KU( k ) @ #j)
+ ∧
+  (∀ #r. (RevV( vid ) @ #r) ⇒ ¬(#r < #j)) ∧
+  (∀ #r. (RevC( ) @ #r) ⇒ ¬(#r < #j))"
+*/
+by sorry
+
+lemma key_jc [reuse]:
+  all-traces
+  "∀ fid k #i #j.
+    ((FogKey( fid, k ) @ #i) ∧ (!KU( k ) @ #j)) ⇒
+    ((∃ #r. (RevF( fid ) @ #r) ∧ (#r < #j)) ∨
+     (∃ #r. (RevC( ) @ #r) ∧ (#r < #j)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ fid k #i #j.
+  (FogKey( fid, k ) @ #i) ∧ (!KU( k ) @ #j)
+ ∧
+  (∀ #r. (RevF( fid ) @ #r) ⇒ ¬(#r < #j)) ∧
+  (∀ #r. (RevC( ) @ #r) ⇒ ¬(#r < #j))"
+*/
+by sorry
+
+lemma key_ij [reuse]:
+  all-traces
+  "∀ vid fid #j.
+    (!KU( poly(vid, fid) ) @ #j) ⇒
+    (((∃ #r. (RevV( vid ) @ #r) ∧ (#r < #j)) ∨
+      (∃ #r. (RevF( fid ) @ #r) ∧ (#r < #j))) ∨
+     (∃ #r. (RevC( ) @ #r) ∧ (#r < #j)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid #j.
+  (!KU( poly(vid, fid) ) @ #j)
+ ∧
+  (∀ #r. (RevV( vid ) @ #r) ⇒ ¬(#r < #j)) ∧
+  (∀ #r. (RevF( fid ) @ #r) ⇒ ¬(#r < #j)) ∧
+  (∀ #r. (RevC( ) @ #r) ⇒ ¬(#r < #j))"
+*/
+by sorry
+
+lemma eph_V [reuse]:
+  all-traces
+  "∀ vid e sv R #i #j.
+    ((V_Eph( vid, e, sv, R ) @ #i) ∧ (!KU( h(<'nx', e, sv>) ) @ #j)) ⇒
+    (∃ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R ) @ #b))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid e sv R #i #j.
+  (V_Eph( vid, e, sv, R ) @ #i) ∧ (!KU( h(<'nx', e, sv>) ) @ #j)
+ ∧
+  ∀ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R ) @ #b) ⇒ ⊥"
+*/
+by sorry
+
+lemma eph_F [reuse]:
+  all-traces
+  "∀ fid e sf R #i #j.
+    ((F_Eph( fid, e, sf, R ) @ #i) ∧ (!KU( h(<'nx', e, sf>) ) @ #j)) ⇒
+    (∃ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R ) @ #b))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ fid e sf R #i #j.
+  (F_Eph( fid, e, sf, R ) @ #i) ∧ (!KU( h(<'nx', e, sf>) ) @ #j)
+ ∧
+  ∀ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R ) @ #b) ⇒ ⊥"
+*/
+by sorry
+
+lemma eph_C [reuse]:
+  all-traces
+  "∀ e sc R #i #j.
+    ((C_Eph( e, sc, R ) @ #i) ∧ (!KU( h(<'nx', e, sc>) ) @ #j)) ⇒
+    (∃ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R ) @ #b))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ e sc R #i #j.
+  (C_Eph( e, sc, R ) @ #i) ∧ (!KU( h(<'nx', e, sc>) ) @ #j)
+ ∧
+  ∀ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R ) @ #b) ⇒ ⊥"
+*/
+by sorry
+
+lemma exec_phaseA:
+  exists-trace
+  "∃ vid fid R1 R2 R3 SK #i #j #k.
+    (((((CS_Accept( vid, fid, R1, R2, R3, SK ) @ #i) ∧
+        (F_Accept( fid, vid, R1, R2, R3, SK ) @ #j)) ∧
+       (V_Accept( vid, fid, R1, R3, SK ) @ #k)) ∧
+      (¬(∃ v #r. RevV( v ) @ #r))) ∧
+     (¬(∃ f #r. RevF( f ) @ #r))) ∧
+    (¬(∃ #r. RevC( ) @ #r))"
+/*
+guarded formula characterizing all satisfying traces:
+"∃ vid fid R1 R2 R3 SK #i #j #k.
+  (CS_Accept( vid, fid, R1, R2, R3, SK ) @ #i) ∧
+  (F_Accept( fid, vid, R1, R2, R3, SK ) @ #j) ∧
+  (V_Accept( vid, fid, R1, R3, SK ) @ #k)
+ ∧
+  (∀ v #r. (RevV( v ) @ #r) ⇒ ⊥) ∧
+  (∀ f #r. (RevF( f ) @ #r) ⇒ ⊥) ∧
+  (∀ #r. (RevC( ) @ #r) ⇒ ⊥)"
+*/
+simplify
+solve( F_St2( ~fid, ~vid, ~e2, ~sf, ~kjc.1, R1, 'g'^h(<'nx', ~e2, ~sf>),
+              Q1, Q2
+       ) ▶₀ #j )
+  case F_2
+  solve( CS_St1( ~sc, ~vid, ~fid, ~kic, ~kjc, R1, 'g'^h(<'nx', ~e2, ~sf>),
+                 'g'^(~sc.1*h(<'nx', ~e2, ~sf>))
+         ) ▶₀ #i )
+    case CS_1
+    solve( V_St( ~vid, ~fid, ~e1, ~sv, ~kic.1, R1, Q1.1 ) ▶₀ #k )
+      case V_1
+      solve( !KU( h(<'d1', 
+                     h(<'SK', 
+                        h(<'h2', ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e3, ~sc>)>), 
+                        'g'^(h(<'nx', ~e2, ~sf>)*h(<'nx', ~e3, ~sc>)), 
+                        'g'^(~sc*h(<'nx', ~e2, ~sf>))>), 
+                     ~kjc, 
+                     h(<'h2', ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e3, ~sc>)>)>)
+             ) @ #vk.5 )
+        case CS_2
+        solve( !KU( h(<'d3', 
+                       h(<'SK', 
+                          h(<'h2', ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e3, ~sc>)>), 
+                          'g'^(h(<'nx', ~e2, ~sf>)*h(<'nx', ~e3, ~sc>)), 
+                          'g'^(~sc*h(<'nx', ~e2, ~sf>))>), 
+                       'g'^(~sf*h(<'nx', ~e1, ~sv>)), 
+                       h(<'h2', ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e3, ~sc>)>)>)
+               ) @ #vk.8 )
+          case F_3
+          solve( !KU( h(<'sig', poly(~vid, ~fid), ~vid, ~fid, 
+                         'g'^h(<'nx', ~e1, ~sv>)>)
+                 ) @ #vk.16 )
+            case V_1
+            solve( !KU( h(<'A', ~kic, ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>)>)
+                   ) @ #vk.23 )
+              case V_1
+              solve( !KU( ~fid ) @ #vk.19 )
+                case Fog_Register
+                solve( !KU( senc(h(<'SK', 
+                                    h(<'h2', ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e3, ~sc>)>), 
+                                    'g'^(h(<'nx', ~e2, ~sf>)*h(<'nx', ~e3, ~sc>)), 
+                                    'g'^(~sc*h(<'nx', ~e2, ~sf>))>),
+                                 h(<'mask', 'g'^(h(<'nx', ~e1, ~sv>)*h(<'nx', ~e3, ~sc>)), ~kic, 
+                                    h(<'h2', ~vid, ~fid, 'g'^h(<'nx', ~e1, ~sv>), 'g'^h(<'nx', ~e3, ~sc>)>)
+                                   >))
+                       ) @ #vk.14 )
+                  case CS_2
+                  solve( !KU( senc(~vid,
+                                   h(<'K1', 'g'^(~sf*h(<'nx', ~e1, ~sv>)), 'g'^h(<'nx', ~e1, ~sv>)>))
+                         ) @ #vk.20 )
+                    case V_1
+                    solve( !KU( senc(~vid,
+                                     h(<'K2', 'g'^(~sc*h(<'nx', ~e2, ~sf>)), ~kjc, 'g'^h(<'nx', ~e1, ~sv>), 
+                                        'g'^h(<'nx', ~e2, ~sf>)>))
+                           ) @ #vk.23 )
+                      case F_2
+                      solve( !KU( 'g'^h(<'nx', ~e3, ~sc>) ) @ #vk.19 )
+                        case CS_2
+                        solve( !KU( 'g'^h(<'nx', ~e2, ~sf>) ) @ #vk.23 )
+                          case F_2
+                          solve( !KU( 'g'^h(<'nx', ~e1, ~sv>) ) @ #vk.22 )
+                            case V_1
+                            SOLVED // trace found
+                          qed
+                        qed
+                      qed
+                    qed
+                  qed
+                qed
+              qed
+            qed
+          qed
+        qed
+      qed
+    qed
+  qed
+qed
+
+lemma authA_V_F [reuse]:
+  all-traces
+  "∀ vid fid R1 R3 SK #i.
+    (V_Accept( vid, fid, R1, R3, SK ) @ #i) ⇒
+    ((((∃ R2 #j. (F_Accept( fid, vid, R1, R2, R3, SK ) @ #j) ∧ (#j < #i)) ∨
+       (∃ #a. (RevF( fid ) @ #a) ∧ (#a < #i))) ∨
+      (∃ #a. (RevC( ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R3 SK #i.
+  (V_Accept( vid, fid, R1, R3, SK ) @ #i)
+ ∧
+  (∀ R2 #j. (F_Accept( fid, vid, R1, R2, R3, SK ) @ #j) ⇒ ¬(#j < #i)) ∧
+  (∀ #a. (RevF( fid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b) ⇒ ⊥)"
+*/
+by sorry
+
+lemma authA_V_CS [reuse]:
+  all-traces
+  "∀ vid fid R1 R3 SK #i.
+    (V_Accept( vid, fid, R1, R3, SK ) @ #i) ⇒
+    ((((∃ R2 #j. (CS_Accept( vid, fid, R1, R2, R3, SK ) @ #j) ∧ (#j < #i)) ∨
+       (∃ #a. (RevC( ) @ #a) ∧ (#a < #i))) ∨
+      (∃ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b))) ∨
+     (∃ #a #b.
+       (((RevV( vid ) @ #a) ∧ (RevF( fid ) @ #b)) ∧ (#a < #i)) ∧ (#b < #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R3 SK #i.
+  (V_Accept( vid, fid, R1, R3, SK ) @ #i)
+ ∧
+  (∀ R2 #j. (CS_Accept( vid, fid, R1, R2, R3, SK ) @ #j) ⇒ ¬(#j < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a #b.
+    (RevV( vid ) @ #a) ∧ (RevF( fid ) @ #b) ⇒ ((¬(#a < #i)) ∨ (¬(#b < #i))))"
+*/
+by sorry
+
+lemma authA_F_V [reuse]:
+  all-traces
+  "∀ vid fid R1 R2 R3 SK #i.
+    (F_Accept( fid, vid, R1, R2, R3, SK ) @ #i) ⇒
+    ((((∃ #j. (V_Start( vid, fid, R1 ) @ #j) ∧ (#j < #i)) ∨
+       (∃ #a. (RevV( vid ) @ #a) ∧ (#a < #i))) ∨
+      (∃ #a. (RevC( ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R2 R3 SK #i.
+  (F_Accept( fid, vid, R1, R2, R3, SK ) @ #i)
+ ∧
+  (∀ #j. (V_Start( vid, fid, R1 ) @ #j) ⇒ ¬(#j < #i)) ∧
+  (∀ #a. (RevV( vid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b) ⇒ ⊥)"
+*/
+by sorry
+
+lemma authA_F_CS [reuse]:
+  all-traces
+  "∀ vid fid R1 R2 R3 SK #i.
+    (F_Accept( fid, vid, R1, R2, R3, SK ) @ #i) ⇒
+    (((∃ #j. (CS_Accept( vid, fid, R1, R2, R3, SK ) @ #j) ∧ (#j < #i)) ∨
+      (∃ #a. (RevC( ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R2 R3 SK #i.
+  (F_Accept( fid, vid, R1, R2, R3, SK ) @ #i)
+ ∧
+  (∀ #j. (CS_Accept( vid, fid, R1, R2, R3, SK ) @ #j) ⇒ ¬(#j < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b) ⇒ ⊥)"
+*/
+by sorry
+
+lemma authA_CS_V [reuse]:
+  all-traces
+  "∀ vid fid R1 R2 #i.
+    (CS_Recv( vid, fid, R1, R2 ) @ #i) ⇒
+    (((∃ #j. (V_Start( vid, fid, R1 ) @ #j) ∧ (#j < #i)) ∨
+      (∃ #a. (RevV( vid ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a. (RevC( ) @ #a) ∧ (#a < #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R2 #i.
+  (CS_Recv( vid, fid, R1, R2 ) @ #i)
+ ∧
+  (∀ #j. (V_Start( vid, fid, R1 ) @ #j) ⇒ ¬(#j < #i)) ∧
+  (∀ #a. (RevV( vid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i))"
+*/
+by sorry
+
+lemma authA_CS_F [reuse]:
+  all-traces
+  "∀ vid fid R1 R2 #i.
+    (CS_Recv( vid, fid, R1, R2 ) @ #i) ⇒
+    (((∃ #j. (F_Recv( fid, vid, R1, R2 ) @ #j) ∧ (#j < #i)) ∨
+      (∃ #a. (RevF( fid ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a. (RevC( ) @ #a) ∧ (#a < #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R2 #i.
+  (CS_Recv( vid, fid, R1, R2 ) @ #i)
+ ∧
+  (∀ #j. (F_Recv( fid, vid, R1, R2 ) @ #j) ⇒ ¬(#j < #i)) ∧
+  (∀ #a. (RevF( fid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i))"
+*/
+by sorry
+
+lemma secA_vehicle:
+  all-traces
+  "∀ vid fid R1 R3 SK #i #j.
+    ((V_Accept( vid, fid, R1, R3, SK ) @ #i) ∧ (K( SK ) @ #j)) ⇒
+    (((((∃ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b)) ∨
+        (∃ R2 #a #b #c.
+          ((F_Recv( fid, vid, R1, R2 ) @ #c) ∧ (RevF( fid ) @ #a)) ∧
+          (RevEphF( fid, R2 ) @ #b))) ∨
+       (∃ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R3 ) @ #b))) ∨
+      (∃ #a. (RevF( fid ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a. (RevC( ) @ #a) ∧ (#a < #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R3 SK #i #j.
+  (V_Accept( vid, fid, R1, R3, SK ) @ #i) ∧ (K( SK ) @ #j)
+ ∧
+  (∀ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b) ⇒ ⊥) ∧
+  (∀ R2 #a #b #c.
+    (F_Recv( fid, vid, R1, R2 ) @ #c) ∧
+    (RevF( fid ) @ #a) ∧
+    (RevEphF( fid, R2 ) @ #b)
+   ⇒
+    ⊥) ∧
+  (∀ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R3 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a. (RevF( fid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i))"
+*/
+by sorry
+
+lemma secA_fog:
+  all-traces
+  "∀ vid fid R1 R2 R3 SK #i #j.
+    ((F_Accept( fid, vid, R1, R2, R3, SK ) @ #i) ∧ (K( SK ) @ #j)) ⇒
+    (((((∃ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b)) ∨
+        (∃ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b))) ∨
+       (∃ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R3 ) @ #b))) ∨
+      (∃ #a. (RevC( ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a. (RevV( vid ) @ #a) ∧ (#a < #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R2 R3 SK #i #j.
+  (F_Accept( fid, vid, R1, R2, R3, SK ) @ #i) ∧ (K( SK ) @ #j)
+ ∧
+  (∀ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R3 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevV( vid ) @ #a) ⇒ ¬(#a < #i))"
+*/
+by sorry
+
+lemma secA_cloud:
+  all-traces
+  "∀ vid fid R1 R2 R3 SK #i #j.
+    ((CS_Accept( vid, fid, R1, R2, R3, SK ) @ #i) ∧ (K( SK ) @ #j)) ⇒
+    ((((((∃ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R3 ) @ #b)) ∨
+         (∃ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b))) ∨
+        (∃ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b))) ∨
+       (∃ #a. (RevF( fid ) @ #a) ∧ (#a < #i))) ∨
+      (∃ #a. (RevV( vid ) @ #a) ∧ (#a < #i))) ∨
+     (∃ #a. (RevC( ) @ #a) ∧ (#a < #i)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid fid R1 R2 R3 SK #i #j.
+  (CS_Accept( vid, fid, R1, R2, R3, SK ) @ #i) ∧ (K( SK ) @ #j)
+ ∧
+  (∀ #a #b. (RevC( ) @ #a) ∧ (RevEphC( R3 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a #b. (RevF( fid ) @ #a) ∧ (RevEphF( fid, R2 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a #b. (RevV( vid ) @ #a) ∧ (RevEphV( vid, R1 ) @ #b) ⇒ ⊥) ∧
+  (∀ #a. (RevF( fid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevV( vid ) @ #a) ⇒ ¬(#a < #i)) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ¬(#a < #i))"
+*/
+by sorry
+
+lemma anonymity:
+  all-traces
+  "∀ vid sv #i #j.
+    ((VehLtk( vid, sv ) @ #i) ∧ (K( vid ) @ #j)) ⇒
+    (((∃ #a. RevV( vid ) @ #a) ∨ (∃ #a. RevC( ) @ #a)) ∨
+     (∃ f R #a #b. (V_Start( vid, f, R ) @ #b) ∧ (RevF( f ) @ #a)))"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid sv #i #j.
+  (VehLtk( vid, sv ) @ #i) ∧ (K( vid ) @ #j)
+ ∧
+  (∀ #a. (RevV( vid ) @ #a) ⇒ ⊥) ∧
+  (∀ #a. (RevC( ) @ #a) ⇒ ⊥) ∧
+  (∀ f R #a #b. (V_Start( vid, f, R ) @ #b) ∧ (RevF( f ) @ #a) ⇒ ⊥)"
+*/
+by sorry
+
+lemma no_escrow_V:
+  all-traces
+  "∀ vid sv #i #j.
+    ((VehLtk( vid, sv ) @ #i) ∧ (K( sv ) @ #j)) ⇒ (∃ #a. RevV( vid ) @ #a)"
+/*
+guarded formula characterizing all counter-examples:
+"∃ vid sv #i #j.
+  (VehLtk( vid, sv ) @ #i) ∧ (K( sv ) @ #j) ∧ ∀ #a. (RevV( vid ) @ #a) ⇒ ⊥"
+*/
+by sorry
+
+lemma no_escrow_F:
+  all-traces
+  "∀ fid sf #i #j.
+    ((FogLtk( fid, sf ) @ #i) ∧ (K( sf ) @ #j)) ⇒ (∃ #a. RevF( fid ) @ #a)"
+/*
+guarded formula characterizing all counter-examples:
+"∃ fid sf #i #j.
+  (FogLtk( fid, sf ) @ #i) ∧ (K( sf ) @ #j) ∧ ∀ #a. (RevF( fid ) @ #a) ⇒ ⊥"
+*/
+by sorry
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* All wellformedness checks were successful. */
+
+/*
+Generated from:
+Tamarin version 1.10.0
+Maude version 3.5
+Git revision: cb62c305f8c8b8c1e664152aa33c95b7b8d5ef32, branch: master
+Compiled at: 2024-10-30 11:11:02.432289291 UTC
+*/
+
+end
+
+==============================================================================
+summary of summaries:
+
+analyzed: IoV_AKA_phaseA.spthy
+
+  processing time: 28.33s
+  
+  ltk_V (all-traces): analysis incomplete (1 steps)
+  ltk_F (all-traces): analysis incomplete (1 steps)
+  key_ic (all-traces): analysis incomplete (1 steps)
+  key_jc (all-traces): analysis incomplete (1 steps)
+  key_ij (all-traces): analysis incomplete (1 steps)
+  eph_V (all-traces): analysis incomplete (1 steps)
+  eph_F (all-traces): analysis incomplete (1 steps)
+  eph_C (all-traces): analysis incomplete (1 steps)
+  exec_phaseA (exists-trace): verified (16 steps)
+  authA_V_F (all-traces): analysis incomplete (1 steps)
+  authA_V_CS (all-traces): analysis incomplete (1 steps)
+  authA_F_V (all-traces): analysis incomplete (1 steps)
+  authA_F_CS (all-traces): analysis incomplete (1 steps)
+  authA_CS_V (all-traces): analysis incomplete (1 steps)
+  authA_CS_F (all-traces): analysis incomplete (1 steps)
+  secA_vehicle (all-traces): analysis incomplete (1 steps)
+  secA_fog (all-traces): analysis incomplete (1 steps)
+  secA_cloud (all-traces): analysis incomplete (1 steps)
+  anonymity (all-traces): analysis incomplete (1 steps)
+  no_escrow_V (all-traces): analysis incomplete (1 steps)
+  no_escrow_F (all-traces): analysis incomplete (1 steps)
+
+==============================================================================
