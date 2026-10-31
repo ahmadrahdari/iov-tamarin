@@ -1,8 +1,8 @@
-# Tamarin model of a two-phase IoV authentication protocol
+# Tamarin model of FogRoam
 
-Formal model and proofs, in the [Tamarin prover](https://tamarin-prover.com), of the
-authentication protocol proposed in
-*"Revisiting Authentication Security for 6G-Fog Integrated Internet of Vehicles"*.
+Formal model and proofs, in the [Tamarin prover](https://tamarin-prover.com), of FogRoam,
+the two-phase authentication protocol proposed in
+*"FogRoam: Forward-Secure Authentication with Cloud-Free Handover for 6G Vehicular Networks"*.
 
 * **Phase A** (cloud-assisted): vehicle `V_i` → fog node `F_j` → cloud server `CS`
   → `F_j` → `V_i` (messages M1–M4, session key `SK` shared by the three parties).
