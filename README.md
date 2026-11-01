@@ -2,7 +2,7 @@
 
 Formal model and proofs, in the [Tamarin prover](https://tamarin-prover.com), of FogRoam,
 the two-phase authentication protocol proposed in
-*"FogRoam: Forward-Secure Authentication with Cloud-Free Handover for 6G Vehicular Networks"*.
+*"FogRoam: Secure Authentication with Cloud-Free Handover for 6G Vehicular Networks"*.
 
 * **Phase A** (cloud-assisted): vehicle `V_i` → fog node `F_j` → cloud server `CS`
   → `F_j` → `V_i` (messages M1–M4, session key `SK` shared by the three parties).
