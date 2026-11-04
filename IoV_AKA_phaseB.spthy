@@ -22,8 +22,13 @@
  *    function poly/2. It is revealed by corrupting V_i (row share), F_j
  *    (column share) or CS (holder of f). Coalitions that exceed the degree
  *    of f, and could interpolate it, are outside the model.
- *  - The one-time pad N_c = h(.) XOR SK is modelled as symmetric encryption
- *    of SK under the mask h(.).
+ *  - Phase A: V_i and CS derive SK = h('SK', h2, Z_VC, k_ic) themselves; CS sends
+ *    SK to F_j as the one-time pad N_f = h('Nf', Z_FC, Q_2, k_jc, h2) XOR SK,
+ *    modelled here as symmetric encryption under the mask (a modified N_f is
+ *    rejected by d_1, which is keyed by k_jc; see the xor variant of the model).
+ *  - Every hash of phases A and B starts with a constant tag that is also written
+ *    in the protocol figures of the paper: 'x' (NAXOS scalars), 'K1', 'K2', 'K3',
+ *    'sig1', 'sig4', 'tau', 'h2', 'SK', 'SKB', 'Nf', 'd1', 'd3', 'd5'.
  *  - Timestamps are abstracted away; the replay caches kept by the fog
  *    nodes and CS within the freshness window are modelled by uniqueness
  *    restrictions on the received ephemeral public keys.
@@ -105,7 +110,7 @@ rule ESReveal_F:  [ !EphF(~fid, R, ~e) ] --[ RevEphF(~fid, R) ]-> [ Out(~e) ]
 
 // Step H1: V_i -> F_k : M5 = {R4, C3, sigma_4, T5}
 rule VH_1:
-    let x4   = h(<'nx', ~e4, ~sv>)
+    let x4   = h(<'x', ~e4, ~sv>)
         R4   = 'g'^x4
         Q4   = pf^x4
         K3   = h(<'K3', Q4, R4>)
@@ -123,10 +128,10 @@ rule FH_1:
     let Q4   = R4^~sf
         K3   = h(<'K3', Q4, R4>)
         kik  = poly(~vid, ~fid)
-        x5   = h(<'nx', ~e5, ~sf>)
+        x5   = h(<'x', ~e5, ~sf>)
         R5   = 'g'^x5
         Z    = R4^x5
-        SKh  = h(<'SKh', kik, ~vid, ~fid, R4, R5, Z, Q4>)
+        SKh  = h(<'SKB', kik, ~vid, ~fid, R4, R5, Z, Q4>)
         d5   = h(<'d5', SKh, R4, R5>)
     in
     [ !LtkF(~fid, ~sf, ~kjc), Fr(~e5),
@@ -136,10 +141,10 @@ rule FH_1:
 
 // Step H3: V_i derives SK' and verifies d5
 rule VH_2:
-    let x4   = h(<'nx', ~e4, ~sv>)
+    let x4   = h(<'x', ~e4, ~sv>)
         Z    = R5^x4
         kik  = poly(~vid, ~fid)
-        SKh  = h(<'SKh', kik, ~vid, ~fid, R4, R5, Z, Q4>)
+        SKh  = h(<'SKB', kik, ~vid, ~fid, R4, R5, Z, Q4>)
     in
     [ VH_St(~vid, ~fid, ~e4, ~sv, R4, Q4), In(<R5, h(<'d5', SKh, R4, R5>)>) ]
   --[ VH_Accept(~vid, ~fid, R4, R5, SKh) ]->

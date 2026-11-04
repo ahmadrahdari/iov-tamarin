@@ -13,7 +13,7 @@ They differ in the order of the adversary-knowledge goals:
            sigma_1 (which only registered identities can satisfy), then the
            DH values and the session key;
   csf      CS authenticates F_j: follow K_2 = h(Q_2, k_jc, R_1, R_2);
-  vcs      V_i authenticates CS: follow N_c and the mask under k_ic;
+  vcs      V_i authenticates CS: follow d_3 and SK = h('SK', h2, Z_VC, k_ic);
   basic    fresh names, DH products, encryptions, then the rest.
 """
 import sys, re
@@ -36,7 +36,7 @@ def r_default(g):
     if isdh(g) and '*' in g and re.search(r'~s[fcv]', g): return 1
     if g.startswith('!KU( ~s') or g.startswith('!KU( ~e') or g.startswith('!KU( ~k'): return 1
     if g.startswith('!KU( poly('): return 2
-    if re.match(r"^!KU\( h\(<'(sig|sig4|A|d1|d3|d5|nx|SKh|SK)'", g): return 2
+    if re.match(r"^!KU\( h\(<'(sig1|sig4|tau|d1|d3|d5|x|SKB|SK)'", g): return 2
     if isdh(g) and '*' in g: return 3
     if g.startswith('!KU( ~'): return 4
     if g.startswith('!KU( senc('): return 5
@@ -47,14 +47,14 @@ def r_default(g):
 
 def r_secrecy(g):
     if is_case(g): return 0
-    if g.startswith("!KU( h(<'sig'") or g.startswith('!KU( poly('): return 1
-    if g.startswith("!KU( h(<'nx'"): return 1
+    if g.startswith("!KU( h(<'sig1'") or g.startswith('!KU( poly('): return 1
+    if g.startswith("!KU( h(<'x'"): return 1
     if (g.startswith('!KU( ~kic') or g.startswith('!KU( ~kjc')
             or g.startswith('!KU( ~s') or g.startswith('!KU( ~e')): return 1
     if isdh(g) and '*' in g: return 2
     if g.startswith("!KU( h(<'SK'"): return 3
-    if g.startswith('!KU( senc(') and "'mask'" in g: return 3
-    if g.startswith("!KU( h(<'mask'"): return 4
+    if g.startswith('!KU( senc(') and "'Nf'" in g: return 3
+    if g.startswith("!KU( h(<'Nf'"): return 4
     if 'splitEqs' in g: return 5
     if isdh(g): return 6
     if g.startswith("!KU( h(<'h2'"): return 7
@@ -81,15 +81,50 @@ def r_vcs(g):
     if '▶' in g: return 0
     if ('∥' in g or g.startswith('(')) and 'Rev' in g: return 0
     if re.match(r'^Rev\w*\(', g): return 0
-    if g.startswith('!KU( senc(') and "'mask'" in g: return 1
-    if g.startswith("!KU( h(<'mask'"): return 2
+    if g.startswith("!KU( h(<'d3'"): return 1
+    if g.startswith("!KU( h(<'SK'"): return 2
     if g.startswith('!KU( ~kic') or g.startswith('!KU( ~kjc'): return 3
-    if g.startswith("!KU( h(<'d3'") or g.startswith("!KU( h(<'d1'"): return 4
+    if g.startswith("!KU( h(<'d1'") or g.startswith('!KU( senc('): return 4
     if g.startswith('!KU( ~s') or g.startswith('!KU( ~e'): return 5
     if isdh(g) and '*' in g and re.search(r'~s[fcv]', g): return 5
     if 'splitEqs' in g: return 6
     if g.startswith("!KU( h(<'SK'"): return 6
     if g.startswith('!KU( senc('): return 7
+    if isdh(g) and '*' in g: return 7
+    if isdh(g): return 8
+    if g.startswith('!KU( ~'): return 9
+    if g.startswith('!KU( h('): return 10
+    return 8
+
+def r_fcs(g):   # F_j authenticates CS: d_1=h('d1',SK,k_jc,h2); resolve ~kjc first, defer SK
+    if '▶' in g: return 0
+    if ('∥' in g or g.startswith('(')) and 'Rev' in g: return 0
+    if re.match(r'^Rev\w*\(', g): return 0
+    if g.startswith('!KU( ~kjc'): return 1
+    if g.startswith("!KU( h(<'d1'"): return 2
+    if g.startswith('!KU( ~kic'): return 3
+    if g.startswith('!KU( ~s') or g.startswith('!KU( ~e'): return 4
+    if 'splitEqs' in g: return 5
+    if isdh(g) and '*' in g and re.search(r'~s[fcv]', g): return 6
+    if g.startswith('!KU( senc('): return 7
+    if isdh(g) and '*' in g: return 8
+    if isdh(g): return 9
+    if g.startswith('!KU( ~'): return 10
+    if g.startswith("!KU( h(<'SK'"): return 11
+    if g.startswith('!KU( h('): return 12
+    return 8
+
+def r_fv(g):    # F_j authenticates V_i: follow sigma_1 = h('sig1', poly(vid,fid), ...)
+    if '▶' in g: return 0
+    if ('∥' in g or g.startswith('(')) and 'Rev' in g: return 0
+    if re.match(r'^Rev\w*\(', g): return 0
+    if g.startswith("!KU( h(<'sig1'") or g.startswith('!KU( poly('): return 1
+    if g.startswith("!KU( h(<'tau'"): return 2
+    if g.startswith('!KU( ~kic') or g.startswith('!KU( ~kjc'): return 2
+    if g.startswith('!KU( ~s') or g.startswith('!KU( ~e'): return 3
+    if isdh(g) and '*' in g and re.search(r'~s[fcv]', g): return 3
+    if 'splitEqs' in g: return 4
+    if g.startswith('!KU( senc('): return 6
     if isdh(g) and '*' in g: return 7
     if isdh(g): return 8
     if g.startswith('!KU( ~'): return 9
@@ -111,6 +146,7 @@ RANKING = {
     'eph_V': r_secrecy, 'eph_F': r_secrecy, 'eph_C': r_secrecy,
     'secA_vehicle': r_secrecy, 'secA_fog': r_secrecy, 'secA_cloud': r_secrecy,
     'authA_CS_F': r_csf, 'authA_V_CS': r_vcs, 'secB_vehicle': r_basic,
+    'authA_F_CS': r_fcs, 'authA_F_V': r_fv,
 }
 
 def main():

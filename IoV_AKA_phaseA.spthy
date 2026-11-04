@@ -22,8 +22,13 @@
  *    function poly/2. It is revealed by corrupting V_i (row share), F_j
  *    (column share) or CS (holder of f). Coalitions that exceed the degree
  *    of f, and could interpolate it, are outside the model.
- *  - The one-time pad N_c = h(.) XOR SK is modelled as symmetric encryption
- *    of SK under the mask h(.).
+ *  - Phase A: V_i and CS derive SK = h('SK', h2, Z_VC, k_ic) themselves; CS sends
+ *    SK to F_j as the one-time pad N_f = h('Nf', Z_FC, Q_2, k_jc, h2) XOR SK,
+ *    modelled here as symmetric encryption under the mask (a modified N_f is
+ *    rejected by d_1, which is keyed by k_jc; see the xor variant of the model).
+ *  - Every hash of phases A and B starts with a constant tag that is also written
+ *    in the protocol figures of the paper: 'x' (NAXOS scalars), 'K1', 'K2', 'K3',
+ *    'sig1', 'sig4', 'tau', 'h2', 'SK', 'SKB', 'Nf', 'd1', 'd3', 'd5'.
  *  - Timestamps are abstracted away; the replay caches kept by the fog
  *    nodes and CS within the freshness window are modelled by uniqueness
  *    restrictions on the received ephemeral public keys.
@@ -109,12 +114,12 @@ rule ESReveal_CS: [ !EphC(R, ~e) ]       --[ RevEphC(R) ]->       [ Out(~e) ]
 
 // Step 1: V_i -> F_j : M1 = {R1, C1, sigma_1, tau_i, T1}
 rule V_1:
-    let x1   = h(<'nx', ~e1, ~sv>)
+    let x1   = h(<'x', ~e1, ~sv>)
         R1   = 'g'^x1
         Q1   = pf^x1
         K1   = h(<'K1', Q1, R1>)
-        sig1 = h(<'sig', poly(~vid, ~fid), ~vid, ~fid, R1>)
-        Ai   = h(<'A', ~kic, ~vid, ~fid, R1>)
+        sig1 = h(<'sig1', poly(~vid, ~fid), ~vid, ~fid, R1>)
+        Ai   = h(<'tau', ~kic, ~vid, ~fid, R1>)
     in
     [ !LtkV(~vid, ~sv, ~kic), !PkF(~fid, pf), Fr(~e1) ]
   --[ V_Start(~vid, ~fid, R1), V_Eph(~vid, ~e1, ~sv, R1) ]->
@@ -127,13 +132,13 @@ rule F_1:
         K1 = h(<'K1', Q1, R1>)
     in
     [ !LtkF(~fid, ~sf, ~kjc),
-      In(<R1, senc(~vid, K1), h(<'sig', poly(~vid, ~fid), ~vid, ~fid, R1>), Ai>) ]
+      In(<R1, senc(~vid, K1), h(<'sig1', poly(~vid, ~fid), ~vid, ~fid, R1>), Ai>) ]
   --[ F_Cache(~fid, R1) ]->
     [ F_St1(~fid, ~vid, R1, Q1, Ai) ]
 
 // Step 2b: F_j -> CS : M2 = {FID_j, R1, R2, C2, A_i, T2}
 rule F_2:
-    let x2 = h(<'nx', ~e2, ~sf>)
+    let x2 = h(<'x', ~e2, ~sf>)
         R2 = 'g'^x2
         Q2 = pc^x2
         K2 = h(<'K2', Q2, ~kjc, R1, R2>)
@@ -149,46 +154,46 @@ rule CS_1:
         K2 = h(<'K2', Q2, ~kjc, R1, R2>)
     in
     [ !LtkC(~sc), !RegF(~fid, ~kjc), !RegV(~vid, ~kic),
-      In(<~fid, R1, R2, senc(~vid, K2), h(<'A', ~kic, ~vid, ~fid, R1>)>) ]
+      In(<~fid, R1, R2, senc(~vid, K2), h(<'tau', ~kic, ~vid, ~fid, R1>)>) ]
   --[ CS_Cache(R2), CS_Cache(R1), CS_Recv(~vid, ~fid, R1, R2) ]->
     [ CS_St1(~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, Q2) ]
 
-// Step 3b: CS -> F_j : M3 = {R3, N_c, d1, T3}
+// Step 3b: CS -> F_j : M3 = {R3, N_f, d1, T3}
 rule CS_2:
-    let x3  = h(<'nx', ~e3, ~sc>)
+    let x3  = h(<'x', ~e3, ~sc>)
         R3  = 'g'^x3
         ZFC = R2^x3
         ZVC = R1^x3
         h2  = h(<'h2', ~vid, ~fid, R1, R3>)
-        SK  = h(<'SK', h2, ZFC, Q2>)
+        SK  = h(<'SK', h2, ZVC, ~kic>)
         d1  = h(<'d1', SK, ~kjc, h2>)
-        Nc  = senc(SK, h(<'mask', ZVC, ~kic, h2>))
+        Nf  = senc(SK, h(<'Nf', ZFC, Q2, ~kjc, h2>))
     in
     [ CS_St1(~sc, ~vid, ~fid, ~kic, ~kjc, R1, R2, Q2), Fr(~e3) ]
   --[ CS_Accept(~vid, ~fid, R1, R2, R3, SK), C_Eph(~e3, ~sc, R3) ]->
-    [ !EphC(R3, ~e3), Out(<R3, Nc, d1>) ]
+    [ !EphC(R3, ~e3), Out(<R3, Nf, d1>) ]
 
-// Step 4: F_j verifies d1 and sends M4 = {R3, N_c, d3, T4} to V_i
+// Step 4: F_j recovers SK from N_f, verifies d1, and sends M4 = {R3, d3, T4} to V_i
 rule F_3:
-    let x2  = h(<'nx', ~e2, ~sf>)
+    let x2  = h(<'x', ~e2, ~sf>)
         ZFC = R3^x2
         h2  = h(<'h2', ~vid, ~fid, R1, R3>)
-        SK  = h(<'SK', h2, ZFC, Q2>)
         d3  = h(<'d3', SK, Q1, h2>)
     in
     [ F_St2(~fid, ~vid, ~e2, ~sf, ~kjc, R1, R2, Q1, Q2),
-      In(<R3, Nc, h(<'d1', SK, ~kjc, h2>)>) ]
+      In(<R3, senc(SK, h(<'Nf', ZFC, Q2, ~kjc, h2>)), h(<'d1', SK, ~kjc, h2>)>) ]
   --[ F_Accept(~fid, ~vid, R1, R2, R3, SK) ]->
-    [ Out(<R3, Nc, d3>) ]
+    [ Out(<R3, d3>) ]
 
-// Step 5: V_i recovers SK from N_c and verifies d3
+// Step 5: V_i derives SK = h('SK', h2, Z_VC, k_ic) and verifies d3
 rule V_2:
-    let x1  = h(<'nx', ~e1, ~sv>)
+    let x1  = h(<'x', ~e1, ~sv>)
         ZVC = R3^x1
         h2  = h(<'h2', ~vid, ~fid, R1, R3>)
+        SK  = h(<'SK', h2, ZVC, ~kic>)
     in
     [ V_St(~vid, ~fid, ~e1, ~sv, ~kic, R1, Q1),
-      In(<R3, senc(SK, h(<'mask', ZVC, ~kic, h2>)), h(<'d3', SK, Q1, h2>)>) ]
+      In(<R3, h(<'d3', SK, Q1, h2>)>) ]
   --[ V_Accept(~vid, ~fid, R1, R3, SK) ]->
     [ ]
 
@@ -218,15 +223,15 @@ lemma key_ij [reuse]:
        | (Ex #r. RevC() @ #r & #r < #j)"
 
 lemma eph_V [reuse]:
-  "All vid e sv R #i #j. V_Eph(vid, e, sv, R) @ #i & KU(h(<'nx', e, sv>)) @ #j
+  "All vid e sv R #i #j. V_Eph(vid, e, sv, R) @ #i & KU(h(<'x', e, sv>)) @ #j
      ==> (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R) @ #b)"
 
 lemma eph_F [reuse]:
-  "All fid e sf R #i #j. F_Eph(fid, e, sf, R) @ #i & KU(h(<'nx', e, sf>)) @ #j
+  "All fid e sf R #i #j. F_Eph(fid, e, sf, R) @ #i & KU(h(<'x', e, sf>)) @ #j
      ==> (Ex #a #b. RevF(fid) @ #a & RevEphF(fid, R) @ #b)"
 
 lemma eph_C [reuse]:
-  "All e sc R #i #j. C_Eph(e, sc, R) @ #i & KU(h(<'nx', e, sc>)) @ #j
+  "All e sc R #i #j. C_Eph(e, sc, R) @ #i & KU(h(<'x', e, sc>)) @ #j
      ==> (Ex #a #b. RevC() @ #a & RevEphC(R) @ #b)"
 
 /* ------------------------------------------------------------------ */
@@ -263,6 +268,11 @@ lemma authA_V_CS [reuse]:
     | (Ex #a. RevC() @ #a & #a < #i)
     | (Ex #a #b. RevV(vid) @ #a & RevEphV(vid, R1) @ #b)
     | (Ex #a #b. RevV(vid) @ #a & RevF(fid) @ #b & #a < #i & #b < #i)"
+
+lemma agreeA_V_CS:
+  "All vid fid R1 R2 R3 SK SK2 #i #j.
+      V_Accept(vid, fid, R1, R3, SK) @ #i & CS_Accept(vid, fid, R1, R2, R3, SK2) @ #j
+   ==> SK = SK2"
 
 lemma authA_F_V [reuse]:
   "All vid fid R1 R2 R3 SK #i.

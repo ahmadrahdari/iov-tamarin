@@ -14,17 +14,16 @@ the two-phase authentication protocol proposed in
 
 | File | Content |
 |------|---------|
-| `IoV_AKA.spthy` | complete model (both phases, all lemmas) |
 | `IoV_AKA_phaseA.spthy` | shared setup, registration, and adversary rules with phase A |
 | `IoV_AKA_phaseB.spthy` | shared setup, registration, and adversary rules with phase B |
 | `oracle.py` | goal-ranking oracle used for all proofs (one ranking per group of lemmas, selected by lemma name) |
 | `run_all.sh` | proves every lemma and writes `results/summary.txt` |
 | `results/` | summary and Tamarin output of every lemma |
 
-The phase files contain exactly the rules of `IoV_AKA.spthy` that belong to the
-respective phase together with the shared rules. All hashes carry phase-specific
-tags, so that no message of one phase can be used in the other; proving the lemmas
-of each phase on its own file keeps the proof search tractable.
+Each phase file is a self-contained, verified model: the shared setup, registration,
+and adversary rules together with the rules of that phase. All hashes carry
+phase-specific tags, so that no message of one phase can be used in the other, and
+proving each phase on its own file keeps the proof search tractable.
 
 ## Threat model
 
@@ -46,7 +45,9 @@ Dolev–Yao network adversary extended with the Canetti–Krawczyk queries:
 * The pairwise key `k_ij = f(VID_i, FID_j)` is the private function `poly/2`; it is
   revealed by corrupting `V_i`, `F_j`, or `CS` (coalitions larger than the degrees of
   `f` are outside the model).
-* The one-time pad `N_c = h(.) XOR SK` is modelled as symmetric encryption.
+* The one-time pad `N_f = h(.) XOR SK` that delivers `SK` to the fog node is modelled
+  as symmetric encryption; its integrity is provided by the MAC `d_1` under `k_jc`.
+  (The vehicle derives `SK` itself; no key-transport value is sent to it.)
 * Timestamp checks are modelled by replay caches (uniqueness restrictions).
 
 ## Lemmas
@@ -57,7 +58,7 @@ Dolev–Yao network adversary extended with the Canetti–Krawczyk queries:
 | `eph_V`, `eph_F`, `eph_C` | helper: a NAXOS scalar `h(r‖sk)` is only learnt if both `r` and `sk` are revealed |
 | `exec_phaseA`, `exec_phaseB` | executability (honest runs exist) |
 | `authA_V_F`, `authA_V_CS` | `V_i` authenticates `F_j` and `CS` (agreement on all session values, KCI-resilient) |
-| `authA_F_V`, `authA_F_CS` | `F_j` authenticates `V_i` and `CS` |
+| `authA_F_V`, `authA_F_CS` | `F_j` authenticates `V_i` and `CS` — established by composition from `authA_CS_V`, `authA_CS_F`, and the secrecy of `k_jc`; the direct injective-agreement proof exhausts memory (>21 GB) on an 8 GB host, see `results/summary.txt` |
 | `authA_CS_V`, `authA_CS_F` | `CS` authenticates `V_i` and `F_j` (a compromised fog node cannot impersonate a vehicle to `CS`) |
 | `authB_V_F`, `authB_F_V` | mutual authentication of `V_i` and `F_k` in phase B |
 | `secA_vehicle`, `secA_fog`, `secA_cloud` | secrecy of `SK`, including perfect forward secrecy and ephemeral-secret leakage |

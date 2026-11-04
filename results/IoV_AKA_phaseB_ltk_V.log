@@ -115,59 +115,59 @@ rule (modulo E) ESReveal_F:
 
 rule (modulo E) VH_1:
    [ !LtkV( ~vid, ~sv, ~kic ), !PkF( ~fid, pf ), Fr( ~e4 ) ]
-  --[ VH_Start( ~vid, ~fid, 'g'^h(<'nx', ~e4, ~sv>) ) ]->
+  --[ VH_Start( ~vid, ~fid, 'g'^h(<'x', ~e4, ~sv>) ) ]->
    [
-   VH_St( ~vid, ~fid, ~e4, ~sv, 'g'^h(<'nx', ~e4, ~sv>),
-          pf^h(<'nx', ~e4, ~sv>)
+   VH_St( ~vid, ~fid, ~e4, ~sv, 'g'^h(<'x', ~e4, ~sv>),
+          pf^h(<'x', ~e4, ~sv>)
    ),
-   !EphV( ~vid, 'g'^h(<'nx', ~e4, ~sv>), ~e4 ),
-   Out( <'g'^h(<'nx', ~e4, ~sv>), 
-         senc(~vid, h(<'K3', pf^h(<'nx', ~e4, ~sv>), 'g'^h(<'nx', ~e4, ~sv>)>)), 
-         h(<'sig4', poly(~vid, ~fid), ~vid, ~fid, 'g'^h(<'nx', ~e4, ~sv>)>)>
+   !EphV( ~vid, 'g'^h(<'x', ~e4, ~sv>), ~e4 ),
+   Out( <'g'^h(<'x', ~e4, ~sv>), 
+         senc(~vid, h(<'K3', pf^h(<'x', ~e4, ~sv>), 'g'^h(<'x', ~e4, ~sv>)>)), 
+         h(<'sig4', poly(~vid, ~fid), ~vid, ~fid, 'g'^h(<'x', ~e4, ~sv>)>)>
    )
    ]
 
   /*
   rule (modulo AC) VH_1:
      [ !LtkV( ~vid, ~sv, ~kic ), !PkF( ~fid, pf ), Fr( ~e4 ) ]
-    --[ VH_Start( ~vid, ~fid, 'g'^h(<'nx', ~e4, ~sv>) ) ]->
+    --[ VH_Start( ~vid, ~fid, 'g'^h(<'x', ~e4, ~sv>) ) ]->
      [
-     VH_St( ~vid, ~fid, ~e4, ~sv, 'g'^h(<'nx', ~e4, ~sv>), z ),
-     !EphV( ~vid, 'g'^h(<'nx', ~e4, ~sv>), ~e4 ),
-     Out( <'g'^h(<'nx', ~e4, ~sv>), 
-           senc(~vid, h(<'K3', z, 'g'^h(<'nx', ~e4, ~sv>)>)), 
-           h(<'sig4', poly(~vid, ~fid), ~vid, ~fid, 'g'^h(<'nx', ~e4, ~sv>)>)>
+     VH_St( ~vid, ~fid, ~e4, ~sv, 'g'^h(<'x', ~e4, ~sv>), z ),
+     !EphV( ~vid, 'g'^h(<'x', ~e4, ~sv>), ~e4 ),
+     Out( <'g'^h(<'x', ~e4, ~sv>), 
+           senc(~vid, h(<'K3', z, 'g'^h(<'x', ~e4, ~sv>)>)), 
+           h(<'sig4', poly(~vid, ~fid), ~vid, ~fid, 'g'^h(<'x', ~e4, ~sv>)>)>
      )
      ]
     variants (modulo AC)
     1. ~e4   = ~e4.26
        ~sv   = ~sv.29
        pf    = pf.31
-       z     = pf.31^h(<'nx', ~e4.26, ~sv.29>)
+       z     = pf.31^h(<'x', ~e4.26, ~sv.29>)
     
     2. ~e4   = ~e4.28
        ~sv   = ~sv.31
-       pf    = z.35^inv(h(<'nx', ~e4.28, ~sv.31>))
+       pf    = z.35^inv(h(<'x', ~e4.28, ~sv.31>))
        z     = z.35
     
     3. ~e4   = ~e4.191
        ~sv   = ~sv.194
        pf    = x.379^x.380
-       z     = x.379^(x.380*h(<'nx', ~e4.191, ~sv.194>))
+       z     = x.379^(x.380*h(<'x', ~e4.191, ~sv.194>))
     
     4. ~e4   = ~e4.196
        ~sv   = ~sv.199
-       pf    = x.389^inv((x.390*h(<'nx', ~e4.196, ~sv.199>)))
+       pf    = x.389^inv((x.390*h(<'x', ~e4.196, ~sv.199>)))
        z     = x.389^inv(x.390)
     
     5. ~e4   = ~e4.196
        ~sv   = ~sv.199
-       pf    = x.389^(x.390*inv(h(<'nx', ~e4.196, ~sv.199>)))
+       pf    = x.389^(x.390*inv(h(<'x', ~e4.196, ~sv.199>)))
        z     = x.389^x.390
     
     6. ~e4   = ~e4.197
        ~sv   = ~sv.200
-       pf    = x.390^(x.391*inv((x.392*h(<'nx', ~e4.197, ~sv.200>))))
+       pf    = x.390^(x.391*inv((x.392*h(<'x', ~e4.197, ~sv.200>))))
        z     = x.390^(x.391*inv(x.392))
     
     7. pf    = DH_neutral
@@ -183,18 +183,18 @@ rule (modulo E) FH_1:
    ]
   --[
   F_Cache( ~fid, R4 ),
-  FH_Accept( ~fid, ~vid, R4, 'g'^h(<'nx', ~e5, ~sf>),
-             h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'nx', ~e5, ~sf>), 
-                R4^h(<'nx', ~e5, ~sf>), R4^~sf>)
+  FH_Accept( ~fid, ~vid, R4, 'g'^h(<'x', ~e5, ~sf>),
+             h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'x', ~e5, ~sf>), 
+                R4^h(<'x', ~e5, ~sf>), R4^~sf>)
   )
   ]->
    [
-   !EphF( ~fid, 'g'^h(<'nx', ~e5, ~sf>), ~e5 ),
-   Out( <'g'^h(<'nx', ~e5, ~sf>), 
+   !EphF( ~fid, 'g'^h(<'x', ~e5, ~sf>), ~e5 ),
+   Out( <'g'^h(<'x', ~e5, ~sf>), 
          h(<'d5', 
-            h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'nx', ~e5, ~sf>), 
-               R4^h(<'nx', ~e5, ~sf>), R4^~sf>), 
-            R4, 'g'^h(<'nx', ~e5, ~sf>)>)
+            h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'x', ~e5, ~sf>), 
+               R4^h(<'x', ~e5, ~sf>), R4^~sf>), 
+            R4, 'g'^h(<'x', ~e5, ~sf>)>)
         >
    )
    ]
@@ -209,18 +209,18 @@ rule (modulo E) FH_1:
      ]
     --[
     F_Cache( ~fid, R4 ),
-    FH_Accept( ~fid, ~vid, R4, 'g'^h(<'nx', ~e5, ~sf>),
-               h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'nx', ~e5, ~sf>), 
-                  z.1, z>)
+    FH_Accept( ~fid, ~vid, R4, 'g'^h(<'x', ~e5, ~sf>),
+               h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'x', ~e5, ~sf>), z.1, 
+                  z>)
     )
     ]->
      [
-     !EphF( ~fid, 'g'^h(<'nx', ~e5, ~sf>), ~e5 ),
-     Out( <'g'^h(<'nx', ~e5, ~sf>), 
+     !EphF( ~fid, 'g'^h(<'x', ~e5, ~sf>), ~e5 ),
+     Out( <'g'^h(<'x', ~e5, ~sf>), 
            h(<'d5', 
-              h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'nx', ~e5, ~sf>), 
-                 z.1, z>), 
-              R4, 'g'^h(<'nx', ~e5, ~sf>)>)
+              h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, 'g'^h(<'x', ~e5, ~sf>), z.1, 
+                 z>), 
+              R4, 'g'^h(<'x', ~e5, ~sf>)>)
           >
      )
      ]
@@ -229,84 +229,84 @@ rule (modulo E) FH_1:
         ~sf   = ~sf.23
         R4    = R4.25
         z     = R4.25^~sf.23
-        z.1   = R4.25^h(<'nx', ~e5.20, ~sf.23>)
+        z.1   = R4.25^h(<'x', ~e5.20, ~sf.23>)
     
      2. ~e5   = ~e5.22
         ~sf   = ~sf.25
         R4    = z.29^inv(~sf.25)
         z     = z.29
-        z.1   = z.29^(h(<'nx', ~e5.22, ~sf.25>)*inv(~sf.25))
+        z.1   = z.29^(h(<'x', ~e5.22, ~sf.25>)*inv(~sf.25))
     
      3. ~e5   = ~e5.27
         ~sf   = ~sf.30
-        R4    = z.39^inv(h(<'nx', ~e5.27, ~sf.30>))
-        z     = z.39^(~sf.30*inv(h(<'nx', ~e5.27, ~sf.30>)))
+        R4    = z.39^inv(h(<'x', ~e5.27, ~sf.30>))
+        z     = z.39^(~sf.30*inv(h(<'x', ~e5.27, ~sf.30>)))
         z.1   = z.39
     
      4. ~e5   = ~e5.260
         ~sf   = ~sf.263
         R4    = x.517^x.518
         z     = x.517^(~sf.263*x.518)
-        z.1   = x.517^(x.518*h(<'nx', ~e5.260, ~sf.263>))
+        z.1   = x.517^(x.518*h(<'x', ~e5.260, ~sf.263>))
     
      5. ~e5   = ~e5.262
         ~sf   = ~sf.265
         R4    = x.521^inv((~sf.265*x.522))
         z     = x.521^inv(x.522)
-        z.1   = x.521^(h(<'nx', ~e5.262, ~sf.265>)*inv((~sf.265*x.522)))
+        z.1   = x.521^(h(<'x', ~e5.262, ~sf.265>)*inv((~sf.265*x.522)))
     
      6. ~e5   = ~e5.262
         ~sf   = ~sf.265
         R4    = x.521^(x.522*inv(~sf.265))
         z     = x.521^x.522
-        z.1   = x.521^(x.522*h(<'nx', ~e5.262, ~sf.265>)*inv(~sf.265))
+        z.1   = x.521^(x.522*h(<'x', ~e5.262, ~sf.265>)*inv(~sf.265))
     
      7. ~e5   = ~e5.263
         ~sf   = ~sf.266
         R4    = x.522^(x.523*inv((~sf.266*x.524)))
         z     = x.522^(x.523*inv(x.524))
-        z.1   = x.522^(x.523*h(<'nx', ~e5.263, ~sf.266>)*inv((~sf.266*x.524)))
+        z.1   = x.522^(x.523*h(<'x', ~e5.263, ~sf.266>)*inv((~sf.266*x.524)))
     
      8. ~e5   = ~e5.264
         ~sf   = ~sf.267
-        R4    = x.526^inv((~sf.267*h(<'nx', ~e5.264, ~sf.267>)))
-        z     = x.526^inv(h(<'nx', ~e5.264, ~sf.267>))
+        R4    = x.526^inv((~sf.267*h(<'x', ~e5.264, ~sf.267>)))
+        z     = x.526^inv(h(<'x', ~e5.264, ~sf.267>))
         z.1   = x.526^inv(~sf.267)
     
      9. ~e5   = ~e5.265
         ~sf   = ~sf.268
-        R4    = x.527^inv((~sf.268*x.528*h(<'nx', ~e5.265, ~sf.268>)))
-        z     = x.527^inv((x.528*h(<'nx', ~e5.265, ~sf.268>)))
+        R4    = x.527^inv((~sf.268*x.528*h(<'x', ~e5.265, ~sf.268>)))
+        z     = x.527^inv((x.528*h(<'x', ~e5.265, ~sf.268>)))
         z.1   = x.527^inv((~sf.268*x.528))
     
     10. ~e5   = ~e5.265
         ~sf   = ~sf.268
-        R4    = x.527^inv((x.528*h(<'nx', ~e5.265, ~sf.268>)))
-        z     = x.527^(~sf.268*inv((x.528*h(<'nx', ~e5.265, ~sf.268>))))
+        R4    = x.527^inv((x.528*h(<'x', ~e5.265, ~sf.268>)))
+        z     = x.527^(~sf.268*inv((x.528*h(<'x', ~e5.265, ~sf.268>))))
         z.1   = x.527^inv(x.528)
     
     11. ~e5   = ~e5.265
         ~sf   = ~sf.268
-        R4    = x.527^(x.528*inv(h(<'nx', ~e5.265, ~sf.268>)))
-        z     = x.527^(~sf.268*x.528*inv(h(<'nx', ~e5.265, ~sf.268>)))
+        R4    = x.527^(x.528*inv(h(<'x', ~e5.265, ~sf.268>)))
+        z     = x.527^(~sf.268*x.528*inv(h(<'x', ~e5.265, ~sf.268>)))
         z.1   = x.527^x.528
     
     12. ~e5   = ~e5.265
         ~sf   = ~sf.268
-        R4    = x.527^(x.528*inv((~sf.268*h(<'nx', ~e5.265, ~sf.268>))))
-        z     = x.527^(x.528*inv(h(<'nx', ~e5.265, ~sf.268>)))
+        R4    = x.527^(x.528*inv((~sf.268*h(<'x', ~e5.265, ~sf.268>))))
+        z     = x.527^(x.528*inv(h(<'x', ~e5.265, ~sf.268>)))
         z.1   = x.527^(x.528*inv(~sf.268))
     
     13. ~e5   = ~e5.266
         ~sf   = ~sf.269
-        R4    = x.528^(x.529*inv((~sf.269*x.530*h(<'nx', ~e5.266, ~sf.269>))))
-        z     = x.528^(x.529*inv((x.530*h(<'nx', ~e5.266, ~sf.269>))))
+        R4    = x.528^(x.529*inv((~sf.269*x.530*h(<'x', ~e5.266, ~sf.269>))))
+        z     = x.528^(x.529*inv((x.530*h(<'x', ~e5.266, ~sf.269>))))
         z.1   = x.528^(x.529*inv((~sf.269*x.530)))
     
     14. ~e5   = ~e5.266
         ~sf   = ~sf.269
-        R4    = x.528^(x.529*inv((x.530*h(<'nx', ~e5.266, ~sf.269>))))
-        z     = x.528^(~sf.269*x.529*inv((x.530*h(<'nx', ~e5.266, ~sf.269>))))
+        R4    = x.528^(x.529*inv((x.530*h(<'x', ~e5.266, ~sf.269>))))
+        z     = x.528^(~sf.269*x.529*inv((x.530*h(<'x', ~e5.266, ~sf.269>))))
         z.1   = x.528^(x.529*inv(x.530))
     
     15. R4    = DH_neutral
@@ -319,16 +319,16 @@ rule (modulo E) VH_2:
    VH_St( ~vid, ~fid, ~e4, ~sv, R4, Q4 ),
    In( <R5, 
         h(<'d5', 
-           h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, R5, R5^h(<'nx', ~e4, ~sv>), 
-              Q4>), 
+           h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, R5, R5^h(<'x', ~e4, ~sv>), Q4
+             >), 
            R4, R5>)
        >
    )
    ]
   --[
   VH_Accept( ~vid, ~fid, R4, R5,
-             h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, R5, R5^h(<'nx', ~e4, ~sv>), 
-                Q4>)
+             h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, R5, R5^h(<'x', ~e4, ~sv>), Q4
+               >)
   )
   ]->
    [ ]
@@ -338,14 +338,14 @@ rule (modulo E) VH_2:
      [
      VH_St( ~vid, ~fid, ~e4, ~sv, R4, Q4 ),
      In( <R5, 
-          h(<'d5', h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, R5, z, Q4>), R4, R5
+          h(<'d5', h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, R5, z, Q4>), R4, R5
             >)
          >
      )
      ]
     --[
     VH_Accept( ~vid, ~fid, R4, R5,
-               h(<'SKh', poly(~vid, ~fid), ~vid, ~fid, R4, R5, z, Q4>)
+               h(<'SKB', poly(~vid, ~fid), ~vid, ~fid, R4, R5, z, Q4>)
     )
     ]->
      [ ]
@@ -353,31 +353,31 @@ rule (modulo E) VH_2:
     1. ~e4   = ~e4.18
        ~sv   = ~sv.20
        R5    = R5.24
-       z     = R5.24^h(<'nx', ~e4.18, ~sv.20>)
+       z     = R5.24^h(<'x', ~e4.18, ~sv.20>)
     
     2. ~e4   = ~e4.21
        ~sv   = ~sv.23
-       R5    = z.30^inv(h(<'nx', ~e4.21, ~sv.23>))
+       R5    = z.30^inv(h(<'x', ~e4.21, ~sv.23>))
        z     = z.30
     
     3. ~e4   = ~e4.23
        ~sv   = ~sv.25
        R5    = x.43^x.44
-       z     = x.43^(x.44*h(<'nx', ~e4.23, ~sv.25>))
+       z     = x.43^(x.44*h(<'x', ~e4.23, ~sv.25>))
     
     4. ~e4   = ~e4.29
        ~sv   = ~sv.31
-       R5    = x.55^inv((x.56*h(<'nx', ~e4.29, ~sv.31>)))
+       R5    = x.55^inv((x.56*h(<'x', ~e4.29, ~sv.31>)))
        z     = x.55^inv(x.56)
     
     5. ~e4   = ~e4.29
        ~sv   = ~sv.31
-       R5    = x.55^(x.56*inv(h(<'nx', ~e4.29, ~sv.31>)))
+       R5    = x.55^(x.56*inv(h(<'x', ~e4.29, ~sv.31>)))
        z     = x.55^x.56
     
     6. ~e4   = ~e4.30
        ~sv   = ~sv.32
-       R5    = x.56^(x.57*inv((x.58*h(<'nx', ~e4.30, ~sv.32>))))
+       R5    = x.56^(x.57*inv((x.58*h(<'x', ~e4.30, ~sv.32>))))
        z     = x.56^(x.57*inv(x.58))
     
     7. R5    = DH_neutral
@@ -615,7 +615,7 @@ summary of summaries:
 
 analyzed: IoV_AKA_phaseB.spthy
 
-  processing time: 1.28s
+  processing time: 1.66s
   
   ltk_V (all-traces): verified (4 steps)
   ltk_F (all-traces): analysis incomplete (1 steps)

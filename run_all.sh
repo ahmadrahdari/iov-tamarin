@@ -2,10 +2,10 @@
 # Proves every lemma of the two phase models with the oracle in oracle.py.
 # One Tamarin process per lemma; JOBS=2 ./run_all.sh runs two lemmas in parallel.
 # Output: results/summary.txt (one line per lemma) and results/<model>_<lemma>.log
-cd "$(dirname "$0")"
+cd "$(dirname "$0")"; export LC_ALL=C.UTF-8 LANG=C.UTF-8; export PATH=/home/claude/tools:/home/claude/tools/maude:$PATH
 mkdir -p results
 JOBS=${JOBS:-1}; TIMEOUT=${TIMEOUT:-3600}
-A="ltk_V ltk_F key_ic key_jc key_ij eph_V eph_F eph_C exec_phaseA authA_V_F authA_V_CS
+A="ltk_V ltk_F key_ic key_jc key_ij eph_V eph_F eph_C exec_phaseA authA_V_F authA_V_CS agreeA_V_CS
    authA_F_V authA_F_CS authA_CS_V authA_CS_F secA_vehicle secA_fog secA_cloud
    anonymity no_escrow_V no_escrow_F"
 B="ltk_V ltk_F key_ic key_jc key_ij exec_phaseB authB_V_F authB_F_V secB_vehicle secB_fog anonymity"
